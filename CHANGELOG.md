@@ -2,6 +2,16 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.3] - 2026-04-03
+
+### Changed
+- PDF pages now have a light-grey content background with white side margins
+- "Daily Chat Activity" is a featured section with red highlight extending full height
+- Weekly Active Users graph only labels key dates for readability
+- All Members table has a 30% darker background throughout
+- "As of" date in header now includes time
+- Every page now has a footer with "Page X of Y", data source, date/time, and version
+
 ## [0.3.2] - 2026-04-03
 
 ### Added
