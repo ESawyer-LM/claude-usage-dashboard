@@ -389,6 +389,12 @@ def scrape() -> dict:
         daily_chats = _timeseries_to_chart(chats_points)
         logger.info(f"Daily chats: {len(daily_chats['data'])} data points: {daily_chats['data']}")
 
+        # --- WAU timeseries (line chart) ---
+        logger.info("Fetching WAU timeseries...")
+        wau_points = _fetch_activity_timeseries(cookie, org_id, metric="wau", days=30)
+        wau_chart = _timeseries_to_chart(wau_points)
+        logger.info(f"WAU timeseries: {len(wau_chart['data'])} data points")
+
         # --- Top users by projects (MTD) ---
         logger.info("Fetching top users by projects...")
         project_rankings = _fetch_user_rankings(cookie, org_id, metric="projects", limit=10)
@@ -444,6 +450,7 @@ def scrape() -> dict:
             "pending_invites": pending_invites,
             "members": members,
             "daily_chats": daily_chats,
+            "wau_chart": wau_chart,
             "top_users_projects": top_projects,
             "top_users_artifacts": top_artifacts,
             "activity_overview": activity_overview,
