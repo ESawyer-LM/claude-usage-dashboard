@@ -95,13 +95,24 @@ def _fetch_members(cookie: str, org_id: str) -> list[dict]:
         )
         for item in data.get("data", []):
             member_type = item.get("type", "member")
-            info = item.get("member", {})
-            account = info.get("account", {})
 
-            name = account.get("full_name", "")
-            email = account.get("email_address", "")
-            role_raw = info.get("role", "user")
-            seat_tier = info.get("seat_tier", "")
+            if member_type == "invite":
+                # Invites: data lives under item["invite"], not item["member"]
+                invite = item.get("invite", {})
+                email = invite.get("email_address", "")
+                role_raw = invite.get("role", "user")
+                seat_tier = invite.get("seat_tier", "")
+                name = email.split("@")[0].replace(".", " ").title() if email else "Unknown"
+                status = "Pending"
+            else:
+                # Active members: data lives under item["member"]["account"]
+                info = item.get("member", {})
+                account = info.get("account", {})
+                email = account.get("email_address", "")
+                name = account.get("full_name", "")
+                role_raw = info.get("role", "user")
+                seat_tier = info.get("seat_tier", "")
+                status = "Active"
 
             role_map = {
                 "primary_owner": "Primary Owner",
@@ -110,13 +121,6 @@ def _fetch_members(cookie: str, org_id: str) -> list[dict]:
                 "user": "User",
             }
             role = role_map.get(role_raw, role_raw.replace("_", " ").title())
-
-            if member_type == "invite":
-                status = "Pending"
-                if not name:
-                    name = email.split("@")[0].replace(".", " ").title() if email else "Unknown"
-            else:
-                status = "Active"
 
             members.append({
                 "name": name, "email": email, "role": role,
