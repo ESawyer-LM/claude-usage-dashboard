@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.2.1] - 2026-04-03
+
+### Changed
+- Version bump for auto-restart test
+
 ## [0.2.0] - 2026-04-03
 
 ### Changed
