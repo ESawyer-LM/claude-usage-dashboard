@@ -133,6 +133,30 @@ def get_flask_secret() -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# Admin password management
+# ---------------------------------------------------------------------------
+def update_env_password(new_password: str):
+    """Update ADMIN_PASSWORD in .env file and in-memory config."""
+    global ADMIN_PASSWORD
+    env_path = _BASE_DIR / ".env"
+    lines = []
+    found = False
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                if line.startswith("ADMIN_PASSWORD="):
+                    lines.append(f"ADMIN_PASSWORD={new_password}\n")
+                    found = True
+                else:
+                    lines.append(line)
+    if not found:
+        lines.append(f"ADMIN_PASSWORD={new_password}\n")
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+    ADMIN_PASSWORD = new_password
+
+
+# ---------------------------------------------------------------------------
 # Settings file management
 # ---------------------------------------------------------------------------
 def _ensure_output_dir():

@@ -351,6 +351,25 @@ def create_app(scheduler_ref=None):
             logger.error(f"Update to v{version} failed: {result['message']}")
         return jsonify(result)
 
+    @app.route("/api/change-password", methods=["POST"])
+    @login_required
+    def api_change_password():
+        current = request.form.get("current_password", "")
+        new_pw = request.form.get("new_password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if not current or current != config.ADMIN_PASSWORD:
+            return jsonify({"ok": False, "error": "Current password is incorrect"}), 400
+        if not new_pw:
+            return jsonify({"ok": False, "error": "New password cannot be empty"}), 400
+        if new_pw != confirm:
+            return jsonify({"ok": False, "error": "New passwords do not match"}), 400
+
+        config.update_env_password(new_pw)
+        session.clear()
+        logger.info("Admin password changed via admin UI")
+        return jsonify({"ok": True, "message": "Password changed. Please log in again."})
+
     return app
 
 
@@ -459,11 +478,38 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <div class="navbar-brand"><div class="badge">LM</div> Claude Dashboard Admin</div>
     <div style="display:flex;gap:16px;align-items:center;">
         <a href="/logs">View Logs</a>
+        <a href="#" onclick="document.getElementById('pwModal').style.display='flex';return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
         <form method="POST" action="/logout" style="display:inline;">
             <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
         </form>
     </div>
 </div>
+<!-- Password Change Modal -->
+<div id="pwModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:12px;padding:24px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+        <h2 style="font-size:16px;font-weight:600;margin-bottom:16px;border-bottom:1px solid #f3f4f6;padding-bottom:10px;">Change Password</h2>
+        <form id="pwForm">
+            <div class="form-group">
+                <label>Current Password</label>
+                <input type="password" name="current_password" required>
+            </div>
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" name="new_password" required>
+            </div>
+            <div class="form-group">
+                <label>Confirm New Password</label>
+                <input type="password" name="confirm_password" required>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <button type="submit" class="btn btn-red">Save</button>
+                <button type="button" class="btn btn-gray" onclick="closePwModal()">Cancel</button>
+                <span id="pwResult" style="font-size:13px;"></span>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="container">
 
 {% if test_result == 'sent' %}
@@ -871,6 +917,32 @@ document.getElementById('installUpdateBtn').addEventListener('click', function()
             result.innerHTML = '<span style="color:#C8102E;">Network error</span>';
             btn.disabled = false;
         });
+});
+
+// Password change modal
+function closePwModal() {
+    document.getElementById('pwModal').style.display = 'none';
+    document.getElementById('pwForm').reset();
+    document.getElementById('pwResult').innerHTML = '';
+}
+document.getElementById('pwModal').addEventListener('click', function(e) {
+    if (e.target === this) closePwModal();
+});
+document.getElementById('pwForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const result = document.getElementById('pwResult');
+    result.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
+    fetch('/api/change-password', { method: 'POST', body: new FormData(this) })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                setTimeout(function() { window.location.href = '/login'; }, 1500);
+            } else {
+                result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+            }
+        })
+        .catch(() => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
 });
 
 // Auto-refresh status every 30 seconds
