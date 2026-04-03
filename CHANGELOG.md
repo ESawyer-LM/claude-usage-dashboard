@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.1] - 2026-04-03
+
+### Fixed
+- Auto-updater now logs each file copy and reports permission errors clearly
+- Verifies config.py version after update to confirm files were written
+
 ## [0.3.0] - 2026-04-03
 
 ### Changed
