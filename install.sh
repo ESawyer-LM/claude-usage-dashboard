@@ -18,22 +18,46 @@ echo ""
 # -----------------------------------------------------------------------
 echo "  [1/8] Installing system dependencies..."
 sudo apt-get update -qq
-sudo apt-get install -y -qq python3 python3-pip python3-venv
+sudo apt-get install -y -qq python3 python3-pip python3-venv git
 echo "  ✓ System dependencies installed"
 
 # -----------------------------------------------------------------------
-# Step 2: App directory
+# Step 2: App directory (git clone for auto-updates, file copy fallback)
 # -----------------------------------------------------------------------
+GITHUB_REPO="https://github.com/ESawyer-LM/claude-usage-dashboard.git"
 echo "  [2/8] Setting up app directory..."
-sudo mkdir -p "$APP_DIR"
-for f in main.py config.py scraper.py html_generator.py pdf_generator.py \
-         emailer.py scheduler.py admin.py requirements.txt .env.example \
-         claude-dashboard.service; do
-    if [ -f "$SRC_DIR/$f" ]; then
-        sudo cp "$SRC_DIR/$f" "$APP_DIR/$f"
-    fi
-done
-echo "  ✓ Project files copied to $APP_DIR"
+if [ -d "$APP_DIR/.git" ]; then
+    # Existing git install — pull latest
+    echo "  → Git repo found, pulling latest..."
+    sudo -u "$SERVICE_USER" git -C "$APP_DIR" fetch --tags origin 2>/dev/null || true
+    sudo -u "$SERVICE_USER" git -C "$APP_DIR" pull origin main 2>/dev/null || true
+elif git ls-remote "$GITHUB_REPO" HEAD &>/dev/null; then
+    # Fresh install with network — clone for auto-update support
+    echo "  → Cloning repository for auto-update support..."
+    sudo mkdir -p "$APP_DIR"
+    sudo git clone "$GITHUB_REPO" "$APP_DIR" 2>/dev/null || {
+        # Clone failed (private repo without credentials) — fall back to copy
+        echo "  → Clone failed, falling back to file copy..."
+        for f in main.py config.py scraper.py html_generator.py pdf_generator.py \
+                 emailer.py scheduler.py admin.py requirements.txt .env.example \
+                 claude-dashboard.service CHANGELOG.md CLAUDE.md README.md; do
+            if [ -f "$SRC_DIR/$f" ]; then
+                sudo cp "$SRC_DIR/$f" "$APP_DIR/$f"
+            fi
+        done
+    }
+else
+    # No network or repo unreachable — copy files
+    sudo mkdir -p "$APP_DIR"
+    for f in main.py config.py scraper.py html_generator.py pdf_generator.py \
+             emailer.py scheduler.py admin.py requirements.txt .env.example \
+             claude-dashboard.service CHANGELOG.md CLAUDE.md README.md; do
+        if [ -f "$SRC_DIR/$f" ]; then
+            sudo cp "$SRC_DIR/$f" "$APP_DIR/$f"
+        fi
+    done
+fi
+echo "  ✓ Project files installed at $APP_DIR"
 
 # -----------------------------------------------------------------------
 # Step 3: Dedicated service user
@@ -123,5 +147,5 @@ echo ""
 echo "  Next step →  Open the admin UI and paste your"
 echo "               claude.ai session cookie to activate data collection."
 echo ""
-echo "  To update →  cd $SRC_DIR && sudo bash install.sh"
+echo "  To update →  Use the admin UI (auto-update) or: cd $SRC_DIR && sudo bash install.sh"
 echo ""

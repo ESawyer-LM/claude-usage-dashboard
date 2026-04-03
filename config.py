@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 import json
 import logging
@@ -267,39 +267,87 @@ def check_for_updates() -> dict:
     return result
 
 
+def _find_pip() -> str | None:
+    """Locate the pip executable for the current environment."""
+    import sys
+    # Check for venv pip relative to the running interpreter
+    pip = os.path.join(os.path.dirname(sys.executable), "pip")
+    if os.path.exists(pip):
+        return pip
+    # Check for venv pip relative to app dir
+    pip = os.path.join(str(_BASE_DIR), "venv", "bin", "pip")
+    if os.path.exists(pip):
+        return pip
+    return None
+
+
+def _pip_install(app_dir: str):
+    """Install dependencies from requirements.txt if pip and the file exist."""
+    pip = _find_pip()
+    req_file = os.path.join(app_dir, "requirements.txt")
+    if pip and os.path.exists(req_file):
+        subprocess.run(
+            [pip, "install", "-r", req_file, "--no-cache-dir", "-q"],
+            cwd=app_dir, capture_output=True, text=True, timeout=120,
+        )
+
+
+def _update_via_git(app_dir: str, tag: str) -> dict:
+    """Update when app dir is a git repository."""
+    subprocess.run(
+        ["git", "fetch", "--tags", "origin"],
+        cwd=app_dir, capture_output=True, text=True, timeout=30, check=True,
+    )
+    subprocess.run(
+        ["git", "checkout", tag],
+        cwd=app_dir, capture_output=True, text=True, timeout=15, check=True,
+    )
+    _pip_install(app_dir)
+    return {"ok": True, "message": f"Updated to {tag}. Restart the service to apply."}
+
+
+def _update_via_download(app_dir: str, tag: str) -> dict:
+    """Update when app dir has no git repo — clone to temp dir and copy files."""
+    import shutil
+
+    clone_dir = tempfile.mkdtemp(prefix="claude-dashboard-update-")
+    try:
+        clone_url = f"https://github.com/{GITHUB_REPO}.git"
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--branch", tag, clone_url, clone_dir],
+            capture_output=True, text=True, timeout=60, check=True,
+        )
+        # Copy application files (preserve .env, output/, venv/)
+        update_files = []
+        for f in os.listdir(clone_dir):
+            if f.endswith(".py") or f in ("requirements.txt", "claude-dashboard.service",
+                                          ".env.example", "CHANGELOG.md", "CLAUDE.md",
+                                          "README.md"):
+                update_files.append(f)
+        for f in update_files:
+            src = os.path.join(clone_dir, f)
+            dst = os.path.join(app_dir, f)
+            shutil.copy2(src, dst)
+        _pip_install(app_dir)
+        return {"ok": True, "message": f"Updated to {tag} ({len(update_files)} files). Restart the service to apply."}
+    finally:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+
+
 def install_update(target_version: str) -> dict:
-    """Pull the target version from git and install dependencies.
+    """Update to the target version. Handles both git repos and file-copy installs.
 
     Returns dict with keys: ok (bool), message (str)
     """
-    app_dir = _BASE_DIR
+    app_dir = str(_BASE_DIR)
     tag = f"v{target_version}" if not target_version.startswith("v") else target_version
 
     try:
-        # Fetch latest tags and commits
-        subprocess.run(
-            ["git", "fetch", "--tags", "origin"],
-            cwd=str(app_dir), capture_output=True, text=True, timeout=30, check=True,
-        )
-        # Checkout the target tag
-        subprocess.run(
-            ["git", "checkout", tag],
-            cwd=str(app_dir), capture_output=True, text=True, timeout=15, check=True,
-        )
-        # Install any updated dependencies
-        pip_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "venv", "bin", "pip")
-        if not os.path.exists(pip_path):
-            # Try system pip or pip in same venv as current interpreter
-            import sys
-            pip_path = os.path.join(os.path.dirname(sys.executable), "pip")
-        req_file = os.path.join(str(app_dir), "requirements.txt")
-        if os.path.exists(pip_path) and os.path.exists(req_file):
-            subprocess.run(
-                [pip_path, "install", "-r", req_file],
-                cwd=str(app_dir), capture_output=True, text=True, timeout=120,
-            )
-
-        return {"ok": True, "message": f"Updated to {tag}. Restart the service to apply."}
+        git_dir = os.path.join(app_dir, ".git")
+        if os.path.isdir(git_dir):
+            return _update_via_git(app_dir, tag)
+        else:
+            return _update_via_download(app_dir, tag)
     except subprocess.CalledProcessError as e:
         return {"ok": False, "message": f"Git error: {e.stderr.strip() or e.stdout.strip()}"}
     except Exception as e:
