@@ -2,7 +2,7 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
-## [0.2.11] - 2026-04-03
+## [0.2.12] - 2026-04-03
 
 ### Added
 - Collapsible card sections in admin UI (Cards 2-5) with chevron indicators and smooth animations
