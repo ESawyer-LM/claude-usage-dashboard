@@ -72,18 +72,21 @@ def _make_numbered_canvas_factory(date_str):
             self.restoreState()
 
         def showPage(self):
+            # Save page state but do NOT commit the page yet — _startPage
+            # just resets the canvas for the next page without writing output.
             self._saved_page_states.append(dict(self.__dict__))
-            super().showPage()
+            self._startPage()
             # Draw background for the next page
             self._draw_background()
 
         def save(self):
+            # Second pass: restore each page, add footer, then commit
             num_pages = len(self._saved_page_states)
             for state in self._saved_page_states:
                 self.__dict__.update(state)
                 self._draw_footer(num_pages)
-                super().showPage()
-            super().save()
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
 
         def _draw_footer(self, total_pages):
             page_num = self._pageNumber
@@ -164,7 +167,7 @@ class StatCardRow(Flowable):
     """Four stat cards with uppercase label, large value, and subtitle."""
 
     def __init__(self, cards, width=USABLE_WIDTH):
-        """cards: list of (label, value, subtitle)"""
+        """cards: list of (label, value, subtitle) or (label, value, subtitle, color_hex)"""
         super().__init__()
         self.cards = cards
         self._width = width
@@ -180,7 +183,10 @@ class StatCardRow(Flowable):
         h = self.height
 
         for i, card in enumerate(self.cards):
-            label, value, subtitle = card[0], card[1], card[2] if len(card) > 2 else ""
+            label = card[0]
+            value = card[1]
+            subtitle = card[2] if len(card) > 2 else ""
+            val_color = card[3] if len(card) > 3 else LM_RED
             x = i * (card_w + gap)
 
             # Card border
@@ -194,8 +200,8 @@ class StatCardRow(Flowable):
             c.setFont("Helvetica-Bold", 7)
             c.drawString(x + 12, h - 18, label.upper())
 
-            # Large value
-            c.setFillColor(colors.HexColor("#111827"))
+            # Large value (colored)
+            c.setFillColor(colors.HexColor(val_color))
             c.setFont("Helvetica-Bold", 22)
             c.drawString(x + 12, h - 44, str(value))
 
@@ -260,7 +266,7 @@ class StatsSummaryRow(Flowable):
 
         for i, (value, label, color) in enumerate(self.items):
             x = i * col_w + 12
-            val_color = color or "#111827"
+            val_color = color or LM_RED
             c.setFillColor(colors.HexColor(val_color))
             c.setFont("Helvetica-Bold", 16)
             c.drawString(x, 18, str(value))
@@ -576,29 +582,34 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
 
     # --- Stat Cards ---
     story.append(StatCardRow([
-        ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned"),
-        ("Active Members", str(active_count), "Onboarded & using Claude"),
-        ("Pending Invites", str(pending_count), "Haven't accepted invite yet"),
-        ("Seat Tier", plan_tier, tier_subtitle),
+        ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned", LM_RED),
+        ("Active Members", str(active_count), "Onboarded & using Claude", LM_GREEN),
+        ("Pending Invites", str(pending_count), "Haven't accepted invite yet", LM_AMBER),
+        ("Seat Tier", plan_tier, tier_subtitle, LM_RED),
     ]))
     story.append(Spacer(1, 18))
 
     # =======================================================================
-    # ACTIVITY ANALYTICS
+    # ACTIVITY ANALYTICS — Featured Daily Chat Activity
     # =======================================================================
-    story.append(SectionHeader(
-        "Activity Analytics \u00b7 Claude.ai/Analytics \u00b7 MTD \u00b7 Updated Daily"
-    ))
-    story.append(Spacer(1, 10))
-
-    # --- Daily Chat Activity (Featured Section) ---
     chat_data = daily_chats.get("data", [])
     chat_labels = daily_chats.get("labels", [])
-    featured_inner_w = USABLE_WIDTH - 14  # leave room for red bar + padding
+    featured_inner_w = USABLE_WIDTH - 22  # room for red border + padding
     fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
     chart_img = _fig_to_image(fig_chats, featured_inner_w, 2.2 * inch)
 
-    featured_rows = [[chart_img]]
+    # Section label inside the featured card
+    section_label_style = ParagraphStyle(
+        "featured_label", parent=styles["Normal"], fontSize=7,
+        fontName="Helvetica-Bold", textColor=colors.HexColor(LM_GRAY),
+        spaceAfter=6,
+    )
+    section_label = Paragraph(
+        "ACTIVITY ANALYTICS \u00b7 CLAUDE.AI/ANALYTICS \u00b7 MTD \u00b7 UPDATED DAILY",
+        section_label_style,
+    )
+
+    featured_rows = [[section_label], [chart_img]]
     if chat_data:
         total_chats = sum(chat_data)
         peak_chats = max(chat_data)
@@ -616,11 +627,16 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     featured_table = Table(featured_rows, colWidths=[USABLE_WIDTH])
     featured_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("LINEBEFORE", (0, 0), (0, -1), 5, colors.HexColor(LM_RED)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (0, 0), 10),
+        ("TOPPADDING", (0, 1), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor(LM_RED)),
+        ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
+        ("ROUNDEDCORNERS", [6, 6, 6, 6]),
     ]))
     story.append(featured_table)
     story.append(Spacer(1, 18))
