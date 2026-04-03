@@ -18,6 +18,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     Flowable,
     Image,
@@ -45,6 +46,57 @@ LM_LIGHT_GRAY = "#f3f4f6"
 PAGE_WIDTH, PAGE_HEIGHT = letter
 MARGIN = 0.5 * inch
 USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN
+
+
+# ---------------------------------------------------------------------------
+# Page-level drawing helpers
+# ---------------------------------------------------------------------------
+def _draw_page_background(canv, doc):
+    """onPage callback: light-grey content background with white margins."""
+    canv.saveState()
+    canv.setFillColor(colors.HexColor("#f5f5f5"))
+    canv.rect(MARGIN, MARGIN, USABLE_WIDTH, PAGE_HEIGHT - 2 * MARGIN,
+              fill=1, stroke=0)
+    canv.restoreState()
+
+
+def _make_numbered_canvas_factory(date_str):
+    """Return a NumberedCanvas class that captures the report date string."""
+
+    class NumberedCanvas(canvas.Canvas):
+        """Two-pass canvas: draws 'Page X of Y' footer on every page."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            super().showPage()
+
+        def save(self):
+            num_pages = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self._draw_footer(num_pages)
+                super().showPage()
+            super().save()
+
+        def _draw_footer(self, total_pages):
+            page_num = self._pageNumber
+            footer_text = (
+                f"Page {page_num} of {total_pages}  \u00b7  "
+                f"Data sourced from Claude.ai Admin Console  \u00b7  "
+                f"As of {date_str}  \u00b7  "
+                f"Lou Malnati\u2019s Pizzeria  \u00b7  v{config.VERSION}"
+            )
+            self.saveState()
+            self.setFont("Helvetica", 7)
+            self.setFillColor(colors.HexColor("#9ca3af"))
+            self.drawCentredString(PAGE_WIDTH / 2, MARGIN / 2, footer_text)
+            self.restoreState()
+
+    return NumberedCanvas
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +279,8 @@ def _fig_to_image(fig, width, height, dpi=150):
 
 
 
-def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
+def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True,
+                     sparse_labels=False):
     """Create a matplotlib line chart with optional data point labels."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
     fig.patch.set_facecolor("white")
@@ -238,21 +291,33 @@ def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
             ax.set_title(title, fontsize=10, fontweight="bold")
         return fig
 
-    x = range(len(data))
+    # Determine which indices get labels (all, or sparse key dates)
+    n_points = len(data)
+    if sparse_labels and n_points > 8:
+        n_ticks = min(6, n_points)
+        key_indices = {0, n_points - 1}
+        step = (n_points - 1) / (n_ticks - 1)
+        for j in range(1, n_ticks - 1):
+            key_indices.add(round(j * step))
+    else:
+        key_indices = set(range(n_points))
+
+    x = range(n_points)
     ax.fill_between(x, data, alpha=0.08, color=LM_RED)
     ax.plot(x, data, color=LM_RED, linewidth=2, marker="o", markersize=7,
             markerfacecolor="white", markeredgecolor=LM_RED, markeredgewidth=2)
 
-    # Data point labels
+    # Data point labels (only at key indices when sparse)
     if show_labels:
-        y_range = max(data) - min(data) if max(data) != min(data) else max(data) or 1
         for i, v in enumerate(data):
-            ax.annotate(str(int(v)), (i, v), textcoords="offset points",
-                        xytext=(0, 10), ha="center", fontsize=7, fontweight="bold",
-                        color=LM_RED)
+            if i in key_indices:
+                ax.annotate(str(int(v)), (i, v), textcoords="offset points",
+                            xytext=(0, 10), ha="center", fontsize=7, fontweight="bold",
+                            color=LM_RED)
 
     ax.set_xticks(list(x))
-    ax.set_xticklabels(labels, fontsize=7, rotation=0)
+    display_labels = [labels[i] if i in key_indices else "" for i in range(n_points)]
+    ax.set_xticklabels(display_labels, fontsize=7, rotation=0)
     if title:
         ax.set_title(title, fontsize=11, fontweight="bold", loc="left", pad=10)
     ax.grid(axis="y", alpha=0.3)
@@ -398,7 +463,7 @@ def _build_member_table(members, top_projects, top_artifacts):
     table = Table(data_rows, colWidths=col_widths, repeatRows=1)
 
     style_cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(LM_LIGHT_GRAY)),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d5d7db")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -412,7 +477,9 @@ def _build_member_table(members, top_projects, top_artifacts):
 
     for i in range(1, len(data_rows)):
         if i % 2 == 0:
-            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#fafafa")))
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#dfe0e3")))
+        else:
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#e8e9eb")))
 
     table.setStyle(TableStyle(style_cmds))
     return table
@@ -468,7 +535,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         tier_subtitle = "All standard seats"
 
     now = datetime.now()
-    today_str = now.strftime("%B %d, %Y")
+    today_str = now.strftime("%B %-d, %Y %-I:%M %p")
     month_str = now.strftime("%B %Y")
 
     styles = getSampleStyleSheet()
@@ -479,7 +546,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         leftMargin=MARGIN,
         rightMargin=MARGIN,
         topMargin=MARGIN,
-        bottomMargin=MARGIN,
+        bottomMargin=MARGIN + 14,
     )
 
     story = []
@@ -521,25 +588,38 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     ))
     story.append(Spacer(1, 10))
 
-    # --- Daily Chat Activity ---
+    # --- Daily Chat Activity (Featured Section) ---
     chat_data = daily_chats.get("data", [])
     chat_labels = daily_chats.get("labels", [])
+    featured_inner_w = USABLE_WIDTH - 14  # leave room for red bar + padding
     fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
-    story.append(_fig_to_image(fig_chats, USABLE_WIDTH, 2.2 * inch))
+    chart_img = _fig_to_image(fig_chats, featured_inner_w, 2.2 * inch)
 
-    # Chat summary stats
+    featured_rows = [[chart_img]]
     if chat_data:
         total_chats = sum(chat_data)
         peak_chats = max(chat_data)
         num_days = len(chat_data)
         avg_chats = total_chats / num_days if num_days else 0
         engagement = "\u2191 Active" if total_chats > 0 else "\u2014 No activity"
-        story.append(StatsSummaryRow([
+        summary_row = StatsSummaryRow([
             (str(total_chats), f"Total chats ({num_days} days)", None),
             (str(peak_chats), "Peak daily chats", None),
             (f"{avg_chats:.1f}", "Avg chats / day", None),
             (engagement, "Team is engaged" if total_chats > 0 else "", LM_GREEN if total_chats > 0 else LM_GRAY),
-        ]))
+        ], width=featured_inner_w)
+        featured_rows.append([summary_row])
+
+    featured_table = Table(featured_rows, colWidths=[USABLE_WIDTH])
+    featured_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor(LM_RED)),
+    ]))
+    story.append(featured_table)
     story.append(Spacer(1, 18))
 
     # =======================================================================
@@ -553,7 +633,8 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     wau_data = wau_chart.get("data", [])
     wau_labels = wau_chart.get("labels", [])
     if wau_data:
-        fig_wau = _make_line_chart(wau_labels, wau_data, f"Weekly Active Users (WAU)")
+        fig_wau = _make_line_chart(wau_labels, wau_data, "Weekly Active Users (WAU)",
+                                    sparse_labels=True)
         story.append(_fig_to_image(fig_wau, USABLE_WIDTH, 2.2 * inch))
 
         # WAU summary
@@ -642,21 +723,12 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         no_data = ParagraphStyle("nodata", parent=styles["Normal"], fontSize=10, textColor=colors.gray)
         story.append(Paragraph("No member data available.", no_data))
 
-    story.append(Spacer(1, 20))
-
-    # --- Footer ---
-    footer_style = ParagraphStyle(
-        "footer", parent=styles["Normal"], fontSize=8,
-        alignment=TA_CENTER, textColor=colors.HexColor("#9ca3af"),
-    )
-    story.append(Paragraph(
-        f"Data sourced from Claude.ai Admin Console \u00b7 "
-        f"Lou Malnati\u2019s Pizzeria organization \u00b7 v{config.VERSION}",
-        footer_style,
-    ))
-
-    # Build PDF
-    doc.build(story)
+    # Build PDF with page background and numbered footer
+    NumberedCanvas = _make_numbered_canvas_factory(today_str)
+    doc.build(story,
+              onPage=_draw_page_background,
+              onLaterPages=_draw_page_background,
+              canvasmaker=NumberedCanvas)
     file_size = os.path.getsize(filepath)
     logger.info(f"PDF report saved to {filepath} ({file_size:,} bytes)")
 
