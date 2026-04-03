@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.2.4] - 2026-04-03
+
+### Fixed
+- Remove `NoNewPrivileges=true` from systemd service — it blocked sudo's setuid bit, preventing auto-restart
+
 ## [0.2.3] - 2026-04-03
 
 ### Changed
