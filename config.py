@@ -292,6 +292,29 @@ def _pip_install(app_dir: str):
         )
 
 
+def _reload_systemd_service(app_dir: str):
+    """Copy updated service file to systemd and reload, if running as a service.
+
+    Requires sudoers entry (created by install.sh) for the service user.
+    """
+    service_src = os.path.join(app_dir, "claude-dashboard.service")
+    if not os.path.exists(service_src):
+        return
+    try:
+        subprocess.run(
+            ["sudo", "/usr/bin/cp", service_src,
+             "/etc/systemd/system/claude-dashboard.service"],
+            capture_output=True, text=True, timeout=10,
+        )
+        subprocess.run(
+            ["sudo", "/usr/bin/systemctl", "daemon-reload"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (PermissionError, subprocess.SubprocessError):
+        # Sudoers not configured or systemctl unavailable — skip silently
+        pass
+
+
 def _update_via_git(app_dir: str, tag: str) -> dict:
     """Update when app dir is a git repository."""
     subprocess.run(
@@ -303,6 +326,7 @@ def _update_via_git(app_dir: str, tag: str) -> dict:
         cwd=app_dir, capture_output=True, text=True, timeout=15, check=True,
     )
     _pip_install(app_dir)
+    _reload_systemd_service(app_dir)
     return {"ok": True, "message": f"Updated to {tag}. Restart the service to apply."}
 
 
@@ -329,6 +353,7 @@ def _update_via_download(app_dir: str, tag: str) -> dict:
             dst = os.path.join(app_dir, f)
             shutil.copy2(src, dst)
         _pip_install(app_dir)
+        _reload_systemd_service(app_dir)
         return {"ok": True, "message": f"Updated to {tag} ({len(update_files)} files). Restart the service to apply."}
     finally:
         shutil.rmtree(clone_dir, ignore_errors=True)

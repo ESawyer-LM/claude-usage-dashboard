@@ -65,6 +65,14 @@ echo "  ✓ Project files installed at $APP_DIR"
 echo "  [3/8] Creating service user..."
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER" 2>/dev/null || true
 sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
+# Allow service user to reload systemd service (for auto-updates)
+SUDOERS_FILE="/etc/sudoers.d/claude-dashboard"
+cat <<'SUDOERS' | sudo tee "$SUDOERS_FILE" > /dev/null
+claude-dashboard ALL=(ALL) NOPASSWD: /usr/bin/cp /opt/claude-dashboard/claude-dashboard.service /etc/systemd/system/claude-dashboard.service
+claude-dashboard ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
+claude-dashboard ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart claude-dashboard
+SUDOERS
+sudo chmod 440 "$SUDOERS_FILE"
 echo "  ✓ Service user '$SERVICE_USER' ready"
 
 # -----------------------------------------------------------------------
