@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.5] - 2026-04-03
+
+### Changed
+- Header bar now has straight edges (no rounded corners)
+- Daily Chat Activity always shows full 7-day timeframe, pads with zeros if fewer
+- Featured card has straight corners and straight red left border
+- Line charts use gradient fill under the line (matching HTML template)
+- WAU graph shows all data point labels, limited to 7 days matching daily chat dates
+- WAU chart and stats wrapped in thin black border to group them visually
+- Horizontal bar charts wrapped in thin black borders
+- Removed sparse_labels — all data points labeled in both charts
+
 ## [0.3.4] - 2026-04-03
 
 ### Fixed

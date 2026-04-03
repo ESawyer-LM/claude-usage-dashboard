@@ -12,6 +12,8 @@ from collections import Counter
 from datetime import datetime
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import numpy as np
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
@@ -109,7 +111,7 @@ def _make_numbered_canvas_factory(date_str):
 # Custom Flowable: Header Banner
 # ---------------------------------------------------------------------------
 class HeaderBanner(Flowable):
-    """Red rounded-rect header with LM logo, title, and date badge."""
+    """Red header bar with LM logo, title, and date badge."""
 
     def __init__(self, title, subtitle, date_str, width=USABLE_WIDTH):
         super().__init__()
@@ -126,9 +128,9 @@ class HeaderBanner(Flowable):
         c = self.canv
         w, h = self._width, self.height
 
-        # Red rounded rectangle background
+        # Red rectangle background (no rounded corners)
         c.setFillColor(colors.HexColor(LM_RED))
-        c.roundRect(0, 0, w, h, 10, fill=1, stroke=0)
+        c.rect(0, 0, w, h, fill=1, stroke=0)
 
         # White circle with "LM"
         cx, cy = 40, h / 2
@@ -288,9 +290,8 @@ def _fig_to_image(fig, width, height, dpi=150):
 
 
 
-def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True,
-                     sparse_labels=False):
-    """Create a matplotlib line chart with optional data point labels."""
+def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
+    """Create a matplotlib line chart with gradient fill and data point labels."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
     fig.patch.set_facecolor("white")
 
@@ -300,39 +301,53 @@ def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True,
             ax.set_title(title, fontsize=10, fontweight="bold")
         return fig
 
-    # Determine which indices get labels (all, or sparse key dates)
     n_points = len(data)
-    if sparse_labels and n_points > 8:
-        n_ticks = min(6, n_points)
-        key_indices = {0, n_points - 1}
-        step = (n_points - 1) / (n_ticks - 1)
-        for j in range(1, n_ticks - 1):
-            key_indices.add(round(j * step))
-    else:
-        key_indices = set(range(n_points))
-
     x = range(n_points)
-    ax.fill_between(x, data, alpha=0.08, color=LM_RED)
-    ax.plot(x, data, color=LM_RED, linewidth=2, marker="o", markersize=7,
-            markerfacecolor="white", markeredgecolor=LM_RED, markeredgewidth=2)
+    y_max = max(data) * 1.3 if data else 1
+    ax.set_ylim(bottom=0, top=y_max)
+    ax.set_xlim(-0.3, n_points - 0.7)
 
-    # Data point labels (only at key indices when sparse)
+    # Gradient fill under the line (top opacity 0.18, fades to 0.01)
+    ax.plot(x, data, color=LM_RED, linewidth=2.5, marker="o", markersize=7,
+            markerfacecolor="white", markeredgecolor=LM_RED, markeredgewidth=2.5,
+            zorder=3)
+    # Create gradient via imshow behind the line
+    z = np.empty((100, 1, 4), dtype=float)
+    r, g, b = LM_RED_RGB
+    for row in range(100):
+        alpha = 0.18 * (1 - row / 100)  # fade from 0.18 at top to ~0 at bottom
+        z[row, 0] = [r, g, b, alpha]
+    # Fill area: draw gradient from line down to 0
+    ax.fill_between(x, data, 0, alpha=0.0)  # invisible fill to set data limits
+    y_min_plot, y_max_plot = ax.get_ylim()
+    x_min_plot, x_max_plot = ax.get_xlim()
+    # Clip gradient to the area under the line
+    from matplotlib.patches import PathPatch
+    from matplotlib.path import Path
+    verts = [(xi, yi) for xi, yi in zip(x, data)]
+    verts += [(n_points - 1, 0), (0, 0)]
+    codes = [Path.MOVETO] + [Path.LINETO] * (len(verts) - 1)
+    clip_path = PathPatch(Path(verts, codes), transform=ax.transData, facecolor='none',
+                          edgecolor='none')
+    ax.add_patch(clip_path)
+    im = ax.imshow(z, aspect='auto', extent=[x_min_plot, x_max_plot, 0, y_max_plot],
+                   origin='upper', zorder=1)
+    im.set_clip_path(clip_path)
+
+    # Data point labels
     if show_labels:
         for i, v in enumerate(data):
-            if i in key_indices:
-                ax.annotate(str(int(v)), (i, v), textcoords="offset points",
-                            xytext=(0, 10), ha="center", fontsize=7, fontweight="bold",
-                            color=LM_RED)
+            ax.annotate(str(int(v)), (i, v), textcoords="offset points",
+                        xytext=(0, 10), ha="center", fontsize=8, fontweight="bold",
+                        color=LM_RED, zorder=4)
 
     ax.set_xticks(list(x))
-    display_labels = [labels[i] if i in key_indices else "" for i in range(n_points)]
-    ax.set_xticklabels(display_labels, fontsize=7, rotation=0)
+    ax.set_xticklabels(labels, fontsize=7, rotation=0)
     if title:
         ax.set_title(title, fontsize=11, fontweight="bold", loc="left", pad=10)
     ax.grid(axis="y", alpha=0.3)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.set_ylim(bottom=0, top=max(data) * 1.3 if data else 1)
 
     fig.tight_layout()
     return fig
@@ -594,6 +609,11 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     # =======================================================================
     chat_data = daily_chats.get("data", [])
     chat_labels = daily_chats.get("labels", [])
+    # Always show exactly 7 days — pad from the front if fewer
+    if chat_data and len(chat_data) < 7:
+        deficit = 7 - len(chat_data)
+        chat_data = [0] * deficit + list(chat_data)
+        chat_labels = [""] * deficit + list(chat_labels)
     featured_inner_w = USABLE_WIDTH - 22  # room for red border + padding
     fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
     chart_img = _fig_to_image(fig_chats, featured_inner_w, 2.2 * inch)
@@ -636,7 +656,6 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         ("TOPPADDING", (0, 1), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
-        ("ROUNDEDCORNERS", [6, 6, 6, 6]),
     ]))
     story.append(featured_table)
     story.append(Spacer(1, 18))
@@ -651,10 +670,13 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
 
     wau_data = wau_chart.get("data", [])
     wau_labels = wau_chart.get("labels", [])
+    # Limit WAU to last 7 data points (matching daily chat timeframe)
+    if len(wau_data) > 7:
+        wau_data = wau_data[-7:]
+        wau_labels = wau_labels[-7:]
     if wau_data:
-        fig_wau = _make_line_chart(wau_labels, wau_data, "Weekly Active Users (WAU)",
-                                    sparse_labels=True)
-        story.append(_fig_to_image(fig_wau, USABLE_WIDTH, 2.2 * inch))
+        fig_wau = _make_line_chart(wau_labels, wau_data, "Weekly Active Users (WAU)")
+        wau_chart_img = _fig_to_image(fig_wau, USABLE_WIDTH - 8, 2.2 * inch)
 
         # WAU summary
         current_wau = wau_data[-1] if wau_data else 0
@@ -663,16 +685,29 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
             growth_pct = ((current_wau - first_wau) / first_wau) * 100
             growth_str = f"+{growth_pct:.0f}%" if growth_pct >= 0 else f"{growth_pct:.0f}%"
         else:
-            growth_str = "—"
-        wow_str = f"+{wau_change:.1f}%" if wau_change and wau_change >= 0 else (f"{wau_change:.1f}%" if wau_change else "—")
+            growth_str = "\u2014"
+        wow_str = f"+{wau_change:.1f}%" if wau_change and wau_change >= 0 else (f"{wau_change:.1f}%" if wau_change else "\u2014")
         first_label = wau_labels[0] if wau_labels else "start"
 
-        story.append(StatsSummaryRow([
+        wau_summary = StatsSummaryRow([
             (str(int(current_wau)), "Current WAU", None),
             (wow_str, "WoW change", LM_GREEN if wau_change and wau_change >= 0 else LM_RED),
             (utilization_str, "Utilization rate", None),
             (growth_str, f"Growth since {first_label}", LM_GREEN if growth_str.startswith("+") else LM_RED),
+        ], width=USABLE_WIDTH - 8)
+
+        # Wrap chart + stats in a bordered table
+        wau_table = Table([[wau_chart_img], [wau_summary]], colWidths=[USABLE_WIDTH])
+        wau_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
+        story.append(wau_table)
     story.append(Spacer(1, 18))
 
     # --- Top Users by Projects ---
@@ -683,7 +718,17 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
             "Top Users by Projects (MTD)"
         )
         proj_h = max(1.5, len(top_projects) * 0.35 + 0.8) * inch
-        story.append(_fig_to_image(fig_proj, USABLE_WIDTH, proj_h))
+        proj_img = _fig_to_image(fig_proj, USABLE_WIDTH - 8, proj_h)
+        proj_table = Table([[proj_img]], colWidths=[USABLE_WIDTH])
+        proj_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(proj_table)
         story.append(Spacer(1, 14))
 
     # --- Top Users by Artifacts ---
@@ -694,7 +739,17 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
             "Top Users by Artifacts (MTD)"
         )
         art_h = max(1.5, len(top_artifacts) * 0.35 + 0.8) * inch
-        story.append(_fig_to_image(fig_art, USABLE_WIDTH, art_h))
+        art_img = _fig_to_image(fig_art, USABLE_WIDTH - 8, art_h)
+        art_table = Table([[art_img]], colWidths=[USABLE_WIDTH])
+        art_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(art_table)
         story.append(Spacer(1, 18))
 
     # =======================================================================
