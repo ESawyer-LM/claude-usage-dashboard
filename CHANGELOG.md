@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.6] - 2026-04-03
+
+### Removed
+- Claude Code cost ($) from email body text
+
 ## [0.3.5] - 2026-04-03
 
 ### Changed
