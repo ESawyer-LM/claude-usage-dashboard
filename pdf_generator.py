@@ -537,7 +537,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     )
     story.append(Paragraph(
         f"Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; "
-        f"Lou Malnati's Pizzeria &middot; {today_str}",
+        f"Lou Malnati's Pizzeria &middot; {today_str} &middot; v{config.VERSION}",
         footer_style,
     ))
 

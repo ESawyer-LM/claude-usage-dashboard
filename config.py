@@ -4,6 +4,8 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
+VERSION = "1.0.0"
+
 import json
 import logging
 import os

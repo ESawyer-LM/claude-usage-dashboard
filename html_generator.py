@@ -406,7 +406,7 @@ def generate_html(data: dict) -> str:
 
         <!-- Footer -->
         <div class="footer">
-            Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; Lou Malnati's Pizzeria &middot; {_escape(today_str)}
+            Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; Lou Malnati's Pizzeria &middot; {_escape(today_str)} &middot; v{config.VERSION}
         </div>
     </div>
 
