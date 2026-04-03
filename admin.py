@@ -8,6 +8,7 @@ import re
 import threading
 from datetime import datetime
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask,
@@ -25,6 +26,22 @@ import emailer
 import scheduler as sched_module
 
 logger = config.get_logger()
+
+
+def _format_time(iso_str, tz_str="America/Chicago"):
+    """Format an ISO datetime string for display in the given timezone."""
+    if not iso_str or iso_str in ("Never", "N/A"):
+        return iso_str
+    try:
+        tz = ZoneInfo(tz_str)
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=tz)
+        else:
+            dt = dt.astimezone(tz)
+        return dt.strftime("%b %-d, %Y %-I:%M %p %Z")
+    except (ValueError, KeyError):
+        return iso_str
 
 
 def create_app(scheduler_ref=None):
@@ -83,10 +100,11 @@ def create_app(scheduler_ref=None):
         else:
             cookie_masked = ""
 
-        # Get status info
-        last_run = settings.get("last_run", "Never")
+        # Get status info, formatted in the configured timezone
+        tz_str = settings.get("timezone", "America/Chicago")
+        last_run = _format_time(settings.get("last_run", "Never"), tz_str)
         last_status = settings.get("last_status", "N/A")
-        last_email_sent = settings.get("last_email_sent", "Never")
+        last_email_sent = _format_time(settings.get("last_email_sent", "Never"), tz_str)
         next_runs = sched_module.get_next_run_times()
 
         # Check for test result in query params
@@ -101,8 +119,8 @@ def create_app(scheduler_ref=None):
             last_run=last_run,
             last_status=last_status,
             last_email_sent=last_email_sent,
-            next_weekday=next_runs.get("weekday", "N/A"),
-            next_friday=next_runs.get("friday", "N/A"),
+            next_weekday=_format_time(next_runs.get("weekday", "N/A"), tz_str),
+            next_friday=_format_time(next_runs.get("friday", "N/A"), tz_str),
             test_result=test_result,
             test_msg=test_msg,
             smtp_pass_set=bool(settings.get("smtp_pass", "")),
@@ -256,7 +274,12 @@ def create_app(scheduler_ref=None):
             if "friday_cron" in data:
                 settings["friday_cron"] = data["friday_cron"]
             if "timezone" in data:
-                settings["timezone"] = data["timezone"]
+                tz_val = data["timezone"].strip()
+                try:
+                    ZoneInfo(tz_val)
+                except (KeyError, Exception):
+                    return jsonify({"ok": False, "error": f"Invalid timezone: {tz_val}"}), 400
+                settings["timezone"] = tz_val
             config.save_settings(settings)
             sched_module.reschedule(settings)
             return jsonify({"ok": True})
@@ -285,15 +308,17 @@ def create_app(scheduler_ref=None):
     @login_required
     def api_status():
         settings = config.load_settings()
+        tz_str = settings.get("timezone", "America/Chicago")
         next_runs = sched_module.get_next_run_times()
         return jsonify({
-            "last_run": settings.get("last_run", "Never"),
+            "last_run": _format_time(settings.get("last_run", "Never"), tz_str),
             "last_status": settings.get("last_status", "N/A"),
-            "last_email_sent": settings.get("last_email_sent", "Never"),
-            "next_weekday": next_runs.get("weekday"),
-            "next_friday": next_runs.get("friday"),
+            "last_email_sent": _format_time(settings.get("last_email_sent", "Never"), tz_str),
+            "next_weekday": _format_time(next_runs.get("weekday"), tz_str),
+            "next_friday": _format_time(next_runs.get("friday"), tz_str),
             "cookie_set": bool(settings.get("session_cookie")),
             "smtp_configured": bool(settings.get("smtp_pass")),
+            "timezone": tz_str,
         })
 
     @app.route("/api/check-update")
@@ -391,6 +416,17 @@ _BASE_CSS = """
     }
     .toggle input:checked + .toggle-slider { background: #C8102E; }
     .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+    .card-header {
+        cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+        user-select: none;
+    }
+    .card-header::after {
+        content: '\\25BC'; font-size: 10px; color: #9ca3af; transition: transform 0.2s;
+        flex-shrink: 0; margin-left: 8px;
+    }
+    .card.collapsed .card-header::after { transform: rotate(-90deg); }
+    .card-body { overflow: hidden; max-height: 2000px; transition: max-height 0.3s ease; }
+    .card.collapsed .card-body { max-height: 0; padding: 0; margin: 0; }
 """
 
 LOGIN_TEMPLATE = """<!DOCTYPE html>
@@ -476,11 +512,22 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div class="status-value">v""" + config.VERSION + """</div>
         </div>
     </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f3f4f6;">
+        <div style="display:flex;gap:8px;align-items:center;">
+            <span class="status-label" style="white-space:nowrap;">Timezone</span>
+            <input type="text" id="timezoneInput" value="{{ settings.timezone }}"
+                   style="width:250px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+            <button type="button" class="btn btn-red" style="padding:6px 14px;font-size:13px;" onclick="saveTimezone()">Save</button>
+            <span id="tzResult" style="font-size:13px;"></span>
+        </div>
+        <div class="hint" style="margin-top:4px;">IANA timezone (e.g. America/Chicago, America/New_York, Europe/London)</div>
+    </div>
 </div>
 
 <!-- Card 2: Claude.ai Connection -->
-<div class="card">
-    <h2>Claude.ai Connection</h2>
+<div class="card" id="card-connection">
+    <h2 class="card-header" onclick="toggleCard('card-connection')">Claude.ai Connection</h2>
+    <div class="card-body">
     {% if cookie_set %}
     <div style="font-size:13px;color:#16a34a;margin-bottom:12px;">
         &#10003; Cookie set: <code>{{ cookie_masked }}</code>
@@ -504,11 +551,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <button type="submit" class="btn btn-red">Save Connection</button>
         <span id="cookieResult" style="margin-left:12px;font-size:13px;"></span>
     </form>
+    </div>
 </div>
 
 <!-- Card 3: SMTP Settings -->
-<div class="card">
-    <h2>SMTP / Email Settings</h2>
+<div class="card" id="card-smtp">
+    <h2 class="card-header" onclick="toggleCard('card-smtp')">SMTP / Email Settings</h2>
+    <div class="card-body">
     <form id="smtpForm">
         <div class="inline-row">
             <div class="form-group" style="flex:3;">
@@ -540,12 +589,15 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <span id="smtpResult" style="font-size:13px;"></span>
         </div>
     </form>
+    </div>
 </div>
 
 <!-- Card 4: Schedule & Recipients -->
-<div class="card">
-    <h2>Schedule &amp; Recipients</h2>
+<div class="card" id="card-schedule">
+    <h2 class="card-header" onclick="toggleCard('card-schedule')">Schedule &amp; Recipients</h2>
+    <div class="card-body">
     <form id="scheduleForm">
+        <input type="hidden" name="timezone" id="scheduleTimezoneHidden" value="{{ settings.timezone }}">
         <div class="inline-row">
             <div class="form-group">
                 <label style="display:flex;align-items:center;gap:8px;">
@@ -592,10 +644,6 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
         </div>
-        <div class="form-group">
-            <label>Timezone</label>
-            <input type="text" name="timezone" value="{{ settings.timezone }}">
-        </div>
         <div class="inline-row">
             <div class="form-group">
                 <label>Weekday Recipients (one per line)</label>
@@ -616,11 +664,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <button type="button" class="btn btn-red" id="sendFridayBtn">Friday Report</button>
         <span id="sendNowResult" style="font-size:13px;"></span>
     </div>
+    </div>
 </div>
 
 <!-- Card 5: Send Test Report -->
-<div class="card">
-    <h2>Send Test Report</h2>
+<div class="card" id="card-test">
+    <h2 class="card-header" onclick="toggleCard('card-test')">Send Test Report</h2>
+    <div class="card-body">
     <form id="testForm">
         <div class="form-group">
             <label>Test Recipient Email</label>
@@ -629,11 +679,52 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <button type="submit" class="btn btn-red">Send Now</button>
         <span id="testResult" style="margin-left:12px;font-size:13px;"></span>
     </form>
+    </div>
 </div>
 
 </div>
 
 <script>
+// Collapsible cards
+function toggleCard(cardId) {
+    var card = document.getElementById(cardId);
+    card.classList.toggle('collapsed');
+    var collapsed = JSON.parse(localStorage.getItem('collapsedCards') || '{}');
+    collapsed[cardId] = card.classList.contains('collapsed');
+    localStorage.setItem('collapsedCards', JSON.stringify(collapsed));
+}
+(function() {
+    var collapsed = JSON.parse(localStorage.getItem('collapsedCards') || '{}');
+    Object.keys(collapsed).forEach(function(cardId) {
+        if (collapsed[cardId]) {
+            var card = document.getElementById(cardId);
+            if (card) card.classList.add('collapsed');
+        }
+    });
+})();
+
+// Save timezone
+function saveTimezone() {
+    var tz = document.getElementById('timezoneInput').value.trim();
+    var result = document.getElementById('tzResult');
+    result.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
+    fetch('/api/reschedule', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({timezone: tz})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) {
+            result.innerHTML = '<span style="color:#16a34a;">&#10003; Saved</span>';
+            document.getElementById('scheduleTimezoneHidden').value = tz;
+        } else {
+            result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+        }
+    })
+    .catch(function() { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+}
+
 // Helper: submit form via fetch
 function formFetch(formId, url, resultId) {
     document.getElementById(formId).addEventListener('submit', function(e) {
@@ -655,8 +746,13 @@ function formFetch(formId, url, resultId) {
 
 formFetch('cookieForm', '/api/save-cookie', 'cookieResult');
 formFetch('smtpForm', '/api/save-smtp', 'smtpResult');
-formFetch('scheduleForm', '/api/save-schedule', 'scheduleResult');
 formFetch('testForm', '/api/send-test', 'testResult');
+
+// Sync hidden timezone before schedule form submit
+document.getElementById('scheduleForm').addEventListener('submit', function() {
+    document.getElementById('scheduleTimezoneHidden').value = document.getElementById('timezoneInput').value.trim();
+});
+formFetch('scheduleForm', '/api/save-schedule', 'scheduleResult');
 
 // Test SMTP button
 document.getElementById('testSmtpBtn').addEventListener('click', function() {
@@ -758,6 +854,10 @@ setInterval(function() {
             document.getElementById('cookieStatus').innerHTML = d.cookie_set
                 ? '&#10003; Set'
                 : '<span style="color:#d97706;">&#9888; Not set</span>';
+            if (d.timezone) {
+                document.getElementById('timezoneInput').value = d.timezone;
+                document.getElementById('scheduleTimezoneHidden').value = d.timezone;
+            }
         })
         .catch(() => {});
 }, 30000);
