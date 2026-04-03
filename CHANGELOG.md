@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.1.4] - 2026-04-03
+
+### Added
+- Auto-update checker queries GitHub for newer version tags
+- Update install button in admin UI with confirmation dialog
+- Version number displayed in admin UI System Status card
+- Support for both git-based and file-copy production installs in auto-updater
+
+### Changed
+- Installer (`install.sh`) now uses `git clone` for auto-update support, with file-copy fallback
+- Installer now includes `git` as a system dependency
+
 ## [0.1.3] - 2026-04-03
 
 ### Added
