@@ -388,18 +388,16 @@ def _build_member_table(members, top_projects, top_artifacts):
     """Build a ReportLab Table for the member directory."""
     styles = getSampleStyleSheet()
 
-    cell_style = ParagraphStyle("cell", parent=styles["Normal"], fontSize=8, leading=10)
-    cell_bold = ParagraphStyle("cellbold", parent=styles["Normal"], fontSize=8, leading=10,
+    cell_style = ParagraphStyle("cell", parent=styles["Normal"], fontSize=7, leading=9)
+    cell_bold = ParagraphStyle("cellbold", parent=styles["Normal"], fontSize=7, leading=9,
                                fontName="Helvetica-Bold")
     cell_center = ParagraphStyle("cellcenter", parent=cell_style, alignment=TA_CENTER)
     cell_center_bold = ParagraphStyle("cellcenterbold", parent=cell_bold, alignment=TA_CENTER)
     header_style = ParagraphStyle(
-        "header", parent=styles["Normal"], fontSize=7, leading=10,
+        "header", parent=styles["Normal"], fontSize=6.5, leading=8,
         textColor=colors.HexColor("#374151"), fontName="Helvetica-Bold"
     )
     header_center = ParagraphStyle("headercenter", parent=header_style, alignment=TA_CENTER)
-    email_style = ParagraphStyle("email", parent=styles["Normal"], fontSize=7, leading=9,
-                                 textColor=colors.HexColor("#9ca3af"))
 
     project_lookup = {u["name"]: u["count"] for u in top_projects}
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
@@ -410,8 +408,8 @@ def _build_member_table(members, top_projects, top_artifacts):
         Paragraph("ROLE", header_center),
         Paragraph("TIER", header_center),
         Paragraph("STATUS", header_center),
-        Paragraph("PROJECTS<br/>MTD", header_center),
-        Paragraph("ARTIFACTS<br/>MTD", header_center),
+        Paragraph("PROJ", header_center),
+        Paragraph("ARTIFACTS", header_center),
     ]
 
     data_rows = [headers]
@@ -426,38 +424,38 @@ def _build_member_table(members, top_projects, top_artifacts):
         projects = project_lookup.get(name, 0)
         artifacts = artifact_lookup.get(name, 0)
 
-        # Member: name (bold) + premium badge + email
-        premium_badge = ' <font color="#7c3aed" backColor="#ede9fe" size="6">&nbsp;Premium&nbsp;</font>' if is_premium else ""
+        # Member: name (bold) + email inline in gray — single line
+        premium_badge = ' <font color="#7c3aed" backColor="#ede9fe" size="5.5">&nbsp;P&nbsp;</font>' if is_premium else ""
         name_p = Paragraph(
-            f'<b>{name}</b>{premium_badge}<br/><font color="#9ca3af" size="7">{email}</font>',
+            f'<b>{name}</b>{premium_badge} <font color="#9ca3af" size="6">{email}</font>',
             cell_style,
         )
 
         # Role badge
         if "primary" in role.lower() and "owner" in role.lower():
             role_p = Paragraph(
-                f'<font color="white" backColor="{LM_RED}" size="7">&nbsp;Primary Owner&nbsp;</font>',
+                f'<font color="white" backColor="{LM_RED}" size="6">&nbsp;Primary Owner&nbsp;</font>',
                 cell_center,
             )
         elif "owner" in role.lower():
             role_p = Paragraph(
-                f'<font color="white" backColor="{LM_GREEN}" size="7">&nbsp;Owner&nbsp;</font>',
+                f'<font color="white" backColor="{LM_GREEN}" size="6">&nbsp;Owner&nbsp;</font>',
                 cell_center,
             )
         else:
             role_p = Paragraph(
-                '<font color="#374151" backColor="#f3f4f6" size="7">&nbsp;User&nbsp;</font>',
+                '<font color="#374151" backColor="#f3f4f6" size="6">&nbsp;User&nbsp;</font>',
                 cell_center,
             )
 
         # Status badge
         if status == "Active":
             status_p = Paragraph(
-                '<font color="#15803d"><b>Active</b></font>', cell_center,
+                '<font color="#15803d" size="6.5"><b>Active</b></font>', cell_center,
             )
         else:
             status_p = Paragraph(
-                '<font color="#b45309" backColor="#fef3c7" size="7">&nbsp;Pending&nbsp;</font>',
+                '<font color="#b45309" backColor="#fef3c7" size="6">&nbsp;Pending&nbsp;</font>',
                 cell_center,
             )
 
@@ -474,14 +472,14 @@ def _build_member_table(members, top_projects, top_artifacts):
             Paragraph(str(artifacts), art_style),
         ])
 
-    # Column widths
+    # Column widths — wide MEMBER col for inline name + email
     col_widths = [
-        USABLE_WIDTH * 0.30,
-        USABLE_WIDTH * 0.15,
-        USABLE_WIDTH * 0.12,
+        USABLE_WIDTH * 0.38,
         USABLE_WIDTH * 0.13,
-        USABLE_WIDTH * 0.15,
-        USABLE_WIDTH * 0.15,
+        USABLE_WIDTH * 0.10,
+        USABLE_WIDTH * 0.11,
+        USABLE_WIDTH * 0.10,
+        USABLE_WIDTH * 0.18,
     ]
 
     table = Table(data_rows, colWidths=col_widths, repeatRows=1)
@@ -489,12 +487,12 @@ def _build_member_table(members, top_projects, top_artifacts):
     style_cmds = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d5d7db")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#d1d5db")),
         ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
     ]
