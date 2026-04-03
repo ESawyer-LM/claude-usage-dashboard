@@ -2,6 +2,13 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.1.6] - 2026-04-03
+
+### Fixed
+- Auto-updater read-only filesystem error on systemd installs
+- Service file now grants write access to full app directory
+- Sudoers entry for service user to reload systemd after updates
+
 ## [0.1.5] - 2026-04-03
 
 ### Changed
