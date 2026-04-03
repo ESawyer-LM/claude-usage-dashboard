@@ -2,6 +2,20 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.2.11] - 2026-04-03
+
+### Added
+- Collapsible card sections in admin UI (Cards 2-5) with chevron indicators and smooth animations
+- localStorage persistence for card collapse state across page reloads
+- Timezone setting prominently displayed in System Status card with dedicated save button
+- Timezone validation rejects invalid IANA timezone strings with user-friendly error
+- `_format_time()` helper for human-readable datetime formatting in configured timezone
+
+### Changed
+- Status times (last scrape, last email, next runs) now display in configured timezone (e.g. "Apr 3, 2026 7:00 AM CDT") instead of raw ISO strings
+- Timezone input moved from Schedule & Recipients card to System Status card for better visibility
+- `/api/status` endpoint now returns formatted times and includes timezone field
+
 ## [0.2.10] - 2026-04-03
 
 ### Added
