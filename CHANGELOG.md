@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.4] - 2026-04-03
+
+### Fixed
+- PDF no longer renders duplicate pages (NumberedCanvas two-pass fix)
+- Stat card values now colored: red for seats/tier, green for active, amber for pending
+- Summary callout values default to red matching HTML template
+- Featured Daily Chat Activity card: white background, full border, rounded corners, section label inside card
+
 ## [0.3.3] - 2026-04-03
 
 ### Changed
