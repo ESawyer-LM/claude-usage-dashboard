@@ -311,7 +311,12 @@ def create_app(scheduler_ref=None):
         logger.info(f"Admin initiated update to v{version}")
         result = config.install_update(version)
         if result["ok"]:
-            logger.info(f"Update to v{version} successful — restart required")
+            logger.info(f"Update to v{version} successful — restarting service")
+            result["message"] = f"Updated to v{version}. Restarting service..."
+            # Restart after a short delay so the response is sent first
+            timer = threading.Timer(1.5, config.restart_service)
+            timer.daemon = True
+            timer.start()
         else:
             logger.error(f"Update to v{version} failed: {result['message']}")
         return jsonify(result)
@@ -713,7 +718,7 @@ document.getElementById('installUpdateBtn').addEventListener('click', function()
     const version = document.getElementById('updateVersion').textContent;
     const result = document.getElementById('updateResult');
     const btn = this;
-    if (!confirm('Install update v' + version + '? The service will need to restart after installation.')) return;
+    if (!confirm('Install update v' + version + '? The service will restart automatically.')) return;
     btn.disabled = true;
     result.innerHTML = '<span style="color:#6b7280;">Installing...</span>';
     const fd = new FormData();
@@ -723,7 +728,8 @@ document.getElementById('installUpdateBtn').addEventListener('click', function()
         .then(d => {
             if (d.ok) {
                 result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
-                btn.textContent = 'Installed';
+                btn.textContent = 'Restarting...';
+                setTimeout(function() { location.reload(); }, 5000);
             } else {
                 result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + d.message + '</span>';
                 btn.disabled = false;

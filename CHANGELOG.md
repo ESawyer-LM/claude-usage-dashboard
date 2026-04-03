@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.1.7] - 2026-04-03
+
+### Added
+- Auto-restart after update — service restarts automatically, page reloads after 5 seconds
+
 ## [0.1.6] - 2026-04-03
 
 ### Fixed

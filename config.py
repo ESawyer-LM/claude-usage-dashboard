@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 
 import json
 import logging
@@ -377,6 +377,15 @@ def install_update(target_version: str) -> dict:
         return {"ok": False, "message": f"Git error: {e.stderr.strip() or e.stdout.strip()}"}
     except Exception as e:
         return {"ok": False, "message": str(e)}
+
+
+def restart_service():
+    """Restart the systemd service. Called after update with a delay so the
+    HTTP response can be sent first. Requires sudoers entry from install.sh."""
+    subprocess.Popen(
+        ["sudo", "/usr/bin/systemctl", "restart", "claude-dashboard"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
 
 
 # ---------------------------------------------------------------------------
