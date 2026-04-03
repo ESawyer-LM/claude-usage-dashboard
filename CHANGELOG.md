@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.8] - 2026-04-03
+
+### Added
+- Password change modal in admin UI navbar (lock icon) — no more manual .env edits
+
 ## [0.3.7] - 2026-04-03
 
 ### Changed

@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.3.7"
+VERSION = "0.3.8"
 
 import json
 import logging
@@ -130,6 +130,30 @@ def get_flask_secret() -> bytes:
     finally:
         os.close(fd)
     return secret
+
+
+# ---------------------------------------------------------------------------
+# Admin password management
+# ---------------------------------------------------------------------------
+def update_env_password(new_password: str):
+    """Update ADMIN_PASSWORD in .env file and in-memory config."""
+    global ADMIN_PASSWORD
+    env_path = _BASE_DIR / ".env"
+    lines = []
+    found = False
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                if line.startswith("ADMIN_PASSWORD="):
+                    lines.append(f"ADMIN_PASSWORD={new_password}\n")
+                    found = True
+                else:
+                    lines.append(line)
+    if not found:
+        lines.append(f"ADMIN_PASSWORD={new_password}\n")
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+    ADMIN_PASSWORD = new_password
 
 
 # ---------------------------------------------------------------------------
