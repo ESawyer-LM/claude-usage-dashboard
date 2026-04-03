@@ -2,58 +2,24 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
-## [0.2.4] - 2026-04-03
-
-### Fixed
-- Remove `NoNewPrivileges=true` from systemd service — it blocked sudo's setuid bit, preventing auto-restart
-
-## [0.2.3] - 2026-04-03
-
-### Changed
-- Version bump for restart test
-
-## [0.2.2] - 2026-04-03
-
-### Fixed
-- Service restart tries multiple methods (sudo -n, sudo, direct) with logging for each attempt
-
-## [0.2.1] - 2026-04-03
-
-### Changed
-- Version bump for auto-restart test
-
-## [0.2.0] - 2026-04-03
-
-### Changed
-- Version bump for auto-update test
-
-## [0.1.9] - 2026-04-03
-
-### Fixed
-- Auto-restart now checks for sudoers permission before attempting; shows manual restart command if not available
-- Restart failures are logged instead of silently ignored
-
-## [0.1.8] - 2026-04-03
-
-### Changed
-- Version bump for auto-update test
-
-## [0.1.7] - 2026-04-03
+## [0.2.10] - 2026-04-03
 
 ### Added
-- Auto-restart after update — service restarts automatically, page reloads after 5 seconds
-
-## [0.1.6] - 2026-04-03
-
-### Fixed
-- Auto-updater read-only filesystem error on systemd installs
-- Service file now grants write access to full app directory
-- Sudoers entry for service user to reload systemd after updates
-
-## [0.1.5] - 2026-04-03
+- Auto-update checker queries GitHub for newer version tags
+- Update install button in admin UI with confirmation dialog
+- Version number displayed in admin UI System Status card and HTML/PDF report footers
+- Auto-restart service after installing updates from admin UI
+- Sudoers entry for service user to manage systemd (created by installer)
 
 ### Changed
-- Version bump to test auto-update checker
+- Installer (`install.sh`) uses `git clone` for new installs (enables auto-update), with file-copy fallback
+- Installer adds `git` as a system dependency
+
+### Fixed
+- Auto-updater supports both git-based and file-copy production installs
+- Removed `NoNewPrivileges=true` from systemd service — it blocked sudo's setuid bit, preventing auto-restart
+- Service file grants write access to full app directory for updates
+- Service restart tries multiple methods with logging for diagnostics
 
 ## [0.1.4] - 2026-04-03
 
