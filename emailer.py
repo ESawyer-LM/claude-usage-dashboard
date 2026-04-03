@@ -79,11 +79,6 @@ def send_report(
     cc = data.get("claude_code", {}).get("summary", {})
     cc_users_count = cc.get("active_users", 0)
     cc_sessions = cc.get("total_sessions", 0)
-    cc_cost = cc.get("total_cost_usd", "0")
-    try:
-        cc_cost_str = f"${float(cc_cost):.2f}"
-    except (ValueError, TypeError):
-        cc_cost_str = "$0.00"
 
     output_dir = config.OUTPUT_DIR
 
@@ -97,7 +92,7 @@ Key stats:
 \u2022 Top user this period: {top_user}
 
 Claude Code (MTD):
-\u2022 {cc_users_count} active users, {cc_sessions} sessions, {cc_cost_str} cost
+\u2022 {cc_users_count} active users, {cc_sessions} sessions
 
 See the attached PDF for the full report.
 Interactive HTML version saved to: {output_dir}
