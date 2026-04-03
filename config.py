@@ -334,13 +334,17 @@ def _update_via_download(app_dir: str, tag: str) -> dict:
     """Update when app dir has no git repo — clone to temp dir and copy files."""
     import shutil
 
+    logger = get_logger()
     clone_dir = tempfile.mkdtemp(prefix="claude-dashboard-update-")
     try:
         clone_url = f"https://github.com/{GITHUB_REPO}.git"
-        subprocess.run(
+        result = subprocess.run(
             ["git", "clone", "--depth", "1", "--branch", tag, clone_url, clone_dir],
-            capture_output=True, text=True, timeout=60, check=True,
+            capture_output=True, text=True, timeout=60,
         )
+        if result.returncode != 0:
+            return {"ok": False, "message": f"Clone failed: {result.stderr.strip()}"}
+
         # Copy application files (preserve .env, output/, venv/)
         update_files = []
         for f in os.listdir(clone_dir):
@@ -348,13 +352,33 @@ def _update_via_download(app_dir: str, tag: str) -> dict:
                                           ".env.example", "CHANGELOG.md", "CLAUDE.md",
                                           "README.md"):
                 update_files.append(f)
+
+        copied = 0
         for f in update_files:
             src = os.path.join(clone_dir, f)
             dst = os.path.join(app_dir, f)
-            shutil.copy2(src, dst)
+            try:
+                shutil.copy2(src, dst)
+                copied += 1
+                logger.info(f"Updated file: {f}")
+            except PermissionError as e:
+                logger.error(f"Permission denied copying {f}: {e}")
+                return {"ok": False, "message": f"Permission denied writing {dst}. Check file ownership."}
+            except Exception as e:
+                logger.error(f"Error copying {f}: {e}")
+                return {"ok": False, "message": f"Error copying {f}: {e}"}
+
+        # Verify the update actually took effect
+        version_file = os.path.join(app_dir, "config.py")
+        if os.path.exists(version_file):
+            with open(version_file, "r") as vf:
+                content = vf.read()
+                if f'VERSION = "{tag.lstrip("v")}"' not in content:
+                    logger.warning(f"Version mismatch after copy — config.py may not have been updated")
+
         _pip_install(app_dir)
         _reload_systemd_service(app_dir)
-        return {"ok": True, "message": f"Updated to {tag} ({len(update_files)} files). Restart the service to apply."}
+        return {"ok": True, "message": f"Updated to {tag} ({copied} files). Restart the service to apply."}
     finally:
         shutil.rmtree(clone_dir, ignore_errors=True)
 
