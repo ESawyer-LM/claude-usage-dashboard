@@ -311,12 +311,20 @@ def create_app(scheduler_ref=None):
         logger.info(f"Admin initiated update to v{version}")
         result = config.install_update(version)
         if result["ok"]:
-            logger.info(f"Update to v{version} successful — restarting service")
-            result["message"] = f"Updated to v{version}. Restarting service..."
-            # Restart after a short delay so the response is sent first
-            timer = threading.Timer(1.5, config.restart_service)
-            timer.daemon = True
-            timer.start()
+            if config.can_restart_service():
+                logger.info(f"Update to v{version} successful — restarting service")
+                result["message"] = f"Updated to v{version}. Restarting service..."
+                result["restarting"] = True
+                timer = threading.Timer(1.5, config.restart_service)
+                timer.daemon = True
+                timer.start()
+            else:
+                logger.info(f"Update to v{version} successful — manual restart required")
+                result["message"] = (
+                    f"Updated to v{version}. Auto-restart not available — "
+                    f"run: sudo systemctl restart claude-dashboard"
+                )
+                result["restarting"] = False
         else:
             logger.error(f"Update to v{version} failed: {result['message']}")
         return jsonify(result)
@@ -728,8 +736,12 @@ document.getElementById('installUpdateBtn').addEventListener('click', function()
         .then(d => {
             if (d.ok) {
                 result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
-                btn.textContent = 'Restarting...';
-                setTimeout(function() { location.reload(); }, 5000);
+                if (d.restarting) {
+                    btn.textContent = 'Restarting...';
+                    setTimeout(function() { location.reload(); }, 5000);
+                } else {
+                    btn.textContent = 'Updated';
+                }
             } else {
                 result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + d.message + '</span>';
                 btn.disabled = false;

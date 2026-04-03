@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 
 import json
 import logging
@@ -379,13 +379,35 @@ def install_update(target_version: str) -> dict:
         return {"ok": False, "message": str(e)}
 
 
-def restart_service():
+def restart_service() -> bool:
     """Restart the systemd service. Called after update with a delay so the
     HTTP response can be sent first. Requires sudoers entry from install.sh."""
-    subprocess.Popen(
-        ["sudo", "/usr/bin/systemctl", "restart", "claude-dashboard"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/bin/systemctl", "restart", "claude-dashboard"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            _logger = get_logger()
+            _logger.error(f"Service restart failed: {result.stderr.strip()}")
+            return False
+        return True
+    except Exception as e:
+        _logger = get_logger()
+        _logger.error(f"Service restart error: {e}")
+        return False
+
+
+def can_restart_service() -> bool:
+    """Check if the service user has permission to restart the service."""
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "-l", "/usr/bin/systemctl", "restart", "claude-dashboard"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------

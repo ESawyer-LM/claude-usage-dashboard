@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.1.9] - 2026-04-03
+
+### Fixed
+- Auto-restart now checks for sudoers permission before attempting; shows manual restart command if not available
+- Restart failures are logged instead of silently ignored
+
 ## [0.1.8] - 2026-04-03
 
 ### Changed
