@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.7] - 2026-04-03
+
+### Changed
+- Member table condensed: name + email on single line, tighter padding, smaller fonts
+- Premium badge shortened to "P", column widths rebalanced
+
 ## [0.3.6] - 2026-04-03
 
 ### Removed
