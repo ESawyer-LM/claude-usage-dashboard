@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.2.2] - 2026-04-03
+
+### Fixed
+- Service restart tries multiple methods (sudo -n, sudo, direct) with logging for each attempt
+
 ## [0.2.1] - 2026-04-03
 
 ### Changed

@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 import json
 import logging
@@ -380,34 +380,26 @@ def install_update(target_version: str) -> dict:
 
 
 def restart_service() -> bool:
-    """Restart the systemd service. Called after update with a delay so the
-    HTTP response can be sent first. Requires sudoers entry from install.sh."""
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", "/usr/bin/systemctl", "restart", "claude-dashboard"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if result.returncode != 0:
-            _logger = get_logger()
-            _logger.error(f"Service restart failed: {result.stderr.strip()}")
-            return False
-        return True
-    except Exception as e:
-        _logger = get_logger()
-        _logger.error(f"Service restart error: {e}")
-        return False
-
-
-def can_restart_service() -> bool:
-    """Check if the service user has permission to restart the service."""
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", "-l", "/usr/bin/systemctl", "restart", "claude-dashboard"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
+    """Restart the systemd service. Tries multiple methods."""
+    logger = get_logger()
+    # Method 1: sudo with NOPASSWD (requires sudoers from install.sh)
+    for cmd in [
+        ["sudo", "-n", "/usr/bin/systemctl", "restart", "claude-dashboard"],
+        ["sudo", "-n", "systemctl", "restart", "claude-dashboard"],
+        ["systemctl", "restart", "claude-dashboard"],
+    ]:
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0:
+                logger.info(f"Service restarted via: {' '.join(cmd)}")
+                return True
+            logger.warning(f"Restart attempt failed ({' '.join(cmd)}): {result.stderr.strip()}")
+        except Exception as e:
+            logger.warning(f"Restart attempt error ({' '.join(cmd)}): {e}")
+    logger.error("All restart methods failed")
+    return False
 
 
 # ---------------------------------------------------------------------------

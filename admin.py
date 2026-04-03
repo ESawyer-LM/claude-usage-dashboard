@@ -311,20 +311,12 @@ def create_app(scheduler_ref=None):
         logger.info(f"Admin initiated update to v{version}")
         result = config.install_update(version)
         if result["ok"]:
-            if config.can_restart_service():
-                logger.info(f"Update to v{version} successful — restarting service")
-                result["message"] = f"Updated to v{version}. Restarting service..."
-                result["restarting"] = True
-                timer = threading.Timer(1.5, config.restart_service)
-                timer.daemon = True
-                timer.start()
-            else:
-                logger.info(f"Update to v{version} successful — manual restart required")
-                result["message"] = (
-                    f"Updated to v{version}. Auto-restart not available — "
-                    f"run: sudo systemctl restart claude-dashboard"
-                )
-                result["restarting"] = False
+            logger.info(f"Update to v{version} successful — attempting restart")
+            result["message"] = f"Updated to v{version}. Restarting service..."
+            result["restarting"] = True
+            timer = threading.Timer(1.5, config.restart_service)
+            timer.daemon = True
+            timer.start()
         else:
             logger.error(f"Update to v{version} failed: {result['message']}")
         return jsonify(result)
