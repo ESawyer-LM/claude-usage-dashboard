@@ -10,7 +10,9 @@ import json
 import logging
 import os
 import stat
+import subprocess
 import tempfile
+import urllib.request
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -209,6 +211,99 @@ def load_cache() -> dict | None:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Update checking
+# ---------------------------------------------------------------------------
+GITHUB_REPO = "ESawyer-LM/claude-usage-dashboard"
+_GITHUB_TAGS_URL = f"https://api.github.com/repos/{GITHUB_REPO}/tags"
+
+
+def _parse_version(v: str) -> tuple:
+    """Parse version string like '0.1.3' into a comparable tuple (0, 1, 3)."""
+    v = v.lstrip("v")
+    parts = []
+    for p in v.split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+def check_for_updates() -> dict:
+    """Check GitHub for a newer version tag.
+
+    Returns dict with keys:
+        update_available (bool), latest_version (str), current_version (str),
+        error (str or None)
+    """
+    result = {
+        "update_available": False,
+        "latest_version": VERSION,
+        "current_version": VERSION,
+        "error": None,
+    }
+    try:
+        req = urllib.request.Request(_GITHUB_TAGS_URL)
+        req.add_header("Accept", "application/vnd.github.v3+json")
+        req.add_header("User-Agent", f"claude-dashboard/{VERSION}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            tags = json.loads(resp.read().decode("utf-8"))
+        if not tags:
+            return result
+        # Tags are returned newest-first; find the latest semver tag
+        for tag in tags:
+            name = tag.get("name", "")
+            if name.startswith("v") and name.count(".") >= 1:
+                latest = name.lstrip("v")
+                result["latest_version"] = latest
+                if _parse_version(latest) > _parse_version(VERSION):
+                    result["update_available"] = True
+                break
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
+def install_update(target_version: str) -> dict:
+    """Pull the target version from git and install dependencies.
+
+    Returns dict with keys: ok (bool), message (str)
+    """
+    app_dir = _BASE_DIR
+    tag = f"v{target_version}" if not target_version.startswith("v") else target_version
+
+    try:
+        # Fetch latest tags and commits
+        subprocess.run(
+            ["git", "fetch", "--tags", "origin"],
+            cwd=str(app_dir), capture_output=True, text=True, timeout=30, check=True,
+        )
+        # Checkout the target tag
+        subprocess.run(
+            ["git", "checkout", tag],
+            cwd=str(app_dir), capture_output=True, text=True, timeout=15, check=True,
+        )
+        # Install any updated dependencies
+        pip_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "venv", "bin", "pip")
+        if not os.path.exists(pip_path):
+            # Try system pip or pip in same venv as current interpreter
+            import sys
+            pip_path = os.path.join(os.path.dirname(sys.executable), "pip")
+        req_file = os.path.join(str(app_dir), "requirements.txt")
+        if os.path.exists(pip_path) and os.path.exists(req_file):
+            subprocess.run(
+                [pip_path, "install", "-r", req_file],
+                cwd=str(app_dir), capture_output=True, text=True, timeout=120,
+            )
+
+        return {"ok": True, "message": f"Updated to {tag}. Restart the service to apply."}
+    except subprocess.CalledProcessError as e:
+        return {"ok": False, "message": f"Git error: {e.stderr.strip() or e.stdout.strip()}"}
+    except Exception as e:
+        return {"ok": False, "message": str(e)}
 
 
 # ---------------------------------------------------------------------------

@@ -296,6 +296,26 @@ def create_app(scheduler_ref=None):
             "smtp_configured": bool(settings.get("smtp_pass")),
         })
 
+    @app.route("/api/check-update")
+    @login_required
+    def api_check_update():
+        result = config.check_for_updates()
+        return jsonify(result)
+
+    @app.route("/api/install-update", methods=["POST"])
+    @login_required
+    def api_install_update():
+        version = request.form.get("version", "").strip()
+        if not version:
+            return jsonify({"ok": False, "message": "No version specified"}), 400
+        logger.info(f"Admin initiated update to v{version}")
+        result = config.install_update(version)
+        if result["ok"]:
+            logger.info(f"Update to v{version} successful — restart required")
+        else:
+            logger.error(f"Update to v{version} failed: {result['message']}")
+        return jsonify(result)
+
     return app
 
 
@@ -406,6 +426,18 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <div class="alert alert-error">Test report failed: {{ test_msg }}</div>
 {% endif %}
 
+<!-- Update Banner (hidden by default, shown by JS) -->
+<div id="updateBanner" style="display:none; padding:12px 20px; border-radius:10px; margin-bottom:20px; background:#eff6ff; border:1px solid #93c5fd; color:#1e40af; font-size:14px; display:none; align-items:center; justify-content:space-between;">
+    <div>
+        <strong>Update available:</strong> v<span id="updateVersion"></span>
+        <span style="color:#6b7280; margin-left:4px;">(current: v""" + config.VERSION + """)</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <span id="updateResult" style="font-size:13px;"></span>
+        <button type="button" class="btn btn-red" id="installUpdateBtn" style="padding:6px 16px;font-size:13px;">Install Update</button>
+    </div>
+</div>
+
 <!-- Card 1: Status -->
 <div class="card" id="statusCard">
     <h2>System Status</h2>
@@ -433,6 +465,10 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <div class="status-item">
             <div class="status-label">Session Cookie</div>
             <div class="status-value" id="cookieStatus">{% if cookie_set %}&#10003; Set{% else %}<span style="color:#d97706;">&#9888; Not set</span>{% endif %}</div>
+        </div>
+        <div class="status-item">
+            <div class="status-label">Version</div>
+            <div class="status-value">v""" + config.VERSION + """</div>
         </div>
     </div>
 </div>
@@ -653,6 +689,51 @@ function sendNow(isFriday) {
 }
 document.getElementById('sendWeekdayBtn').addEventListener('click', () => sendNow('false'));
 document.getElementById('sendFridayBtn').addEventListener('click', () => sendNow('true'));
+
+// Check for updates on page load and every 30 minutes
+function checkForUpdate() {
+    fetch('/api/check-update')
+        .then(r => r.json())
+        .then(d => {
+            const banner = document.getElementById('updateBanner');
+            if (d.update_available) {
+                document.getElementById('updateVersion').textContent = d.latest_version;
+                banner.style.display = 'flex';
+            } else {
+                banner.style.display = 'none';
+            }
+        })
+        .catch(() => {});
+}
+checkForUpdate();
+setInterval(checkForUpdate, 1800000);
+
+// Install update button
+document.getElementById('installUpdateBtn').addEventListener('click', function() {
+    const version = document.getElementById('updateVersion').textContent;
+    const result = document.getElementById('updateResult');
+    const btn = this;
+    if (!confirm('Install update v' + version + '? The service will need to restart after installation.')) return;
+    btn.disabled = true;
+    result.innerHTML = '<span style="color:#6b7280;">Installing...</span>';
+    const fd = new FormData();
+    fd.append('version', version);
+    fetch('/api/install-update', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                btn.textContent = 'Installed';
+            } else {
+                result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + d.message + '</span>';
+                btn.disabled = false;
+            }
+        })
+        .catch(() => {
+            result.innerHTML = '<span style="color:#C8102E;">Network error</span>';
+            btn.disabled = false;
+        });
+});
 
 // Auto-refresh status every 30 seconds
 setInterval(function() {
