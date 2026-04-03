@@ -51,28 +51,31 @@ USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN
 # ---------------------------------------------------------------------------
 # Page-level drawing helpers
 # ---------------------------------------------------------------------------
-def _draw_page_background(canv, doc):
-    """onPage callback: light-grey content background with white margins."""
-    canv.saveState()
-    canv.setFillColor(colors.HexColor("#f5f5f5"))
-    canv.rect(MARGIN, MARGIN, USABLE_WIDTH, PAGE_HEIGHT - 2 * MARGIN,
-              fill=1, stroke=0)
-    canv.restoreState()
-
-
 def _make_numbered_canvas_factory(date_str):
     """Return a NumberedCanvas class that captures the report date string."""
 
     class NumberedCanvas(canvas.Canvas):
-        """Two-pass canvas: draws 'Page X of Y' footer on every page."""
+        """Custom canvas: draws light-grey background + 'Page X of Y' footer."""
 
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self._saved_page_states = []
+            # Draw background on the very first page
+            self._draw_background()
+
+        def _draw_background(self):
+            """Light-grey content area background with white margins."""
+            self.saveState()
+            self.setFillColor(colors.HexColor("#f5f5f5"))
+            self.rect(MARGIN, MARGIN, USABLE_WIDTH, PAGE_HEIGHT - 2 * MARGIN,
+                      fill=1, stroke=0)
+            self.restoreState()
 
         def showPage(self):
             self._saved_page_states.append(dict(self.__dict__))
             super().showPage()
+            # Draw background for the next page
+            self._draw_background()
 
         def save(self):
             num_pages = len(self._saved_page_states)
@@ -725,10 +728,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
 
     # Build PDF with page background and numbered footer
     NumberedCanvas = _make_numbered_canvas_factory(today_str)
-    doc.build(story,
-              onPage=_draw_page_background,
-              onLaterPages=_draw_page_background,
-              canvasmaker=NumberedCanvas)
+    doc.build(story, canvasmaker=NumberedCanvas)
     file_size = os.path.getsize(filepath)
     logger.info(f"PDF report saved to {filepath} ({file_size:,} bytes)")
 
