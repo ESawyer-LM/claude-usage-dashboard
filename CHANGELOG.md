@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.3.2] - 2026-04-03
+
+### Added
+- Last test recipient saved and pre-filled for re-use
+- Timezone selection is now a dropdown with common US and international timezones
+
 ## [0.3.1] - 2026-04-03
 
 ### Fixed

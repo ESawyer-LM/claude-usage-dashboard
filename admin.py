@@ -293,6 +293,11 @@ def create_app(scheduler_ref=None):
         if not recipient or "@" not in recipient:
             return jsonify({"ok": False, "error": "Valid email address required"}), 400
 
+        # Save last test recipient for re-use
+        settings = config.load_settings()
+        settings["last_test_recipient"] = recipient
+        config.save_settings(settings)
+
         def _run():
             try:
                 ok, msg = sched_module.run_test_report(recipient)
@@ -515,12 +520,39 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f3f4f6;">
         <div style="display:flex;gap:8px;align-items:center;">
             <span class="status-label" style="white-space:nowrap;">Timezone</span>
-            <input type="text" id="timezoneInput" value="{{ settings.timezone }}"
-                   style="width:250px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+            <select id="timezoneInput" style="width:280px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                {% set tz_options = [
+                    ("US/Eastern", "US Eastern (New York)"),
+                    ("US/Central", "US Central (Chicago)"),
+                    ("US/Mountain", "US Mountain (Denver)"),
+                    ("US/Pacific", "US Pacific (Los Angeles)"),
+                    ("US/Alaska", "US Alaska"),
+                    ("US/Hawaii", "US Hawaii"),
+                    ("America/New_York", "America/New_York"),
+                    ("America/Chicago", "America/Chicago"),
+                    ("America/Denver", "America/Denver"),
+                    ("America/Los_Angeles", "America/Los_Angeles"),
+                    ("America/Phoenix", "America/Phoenix"),
+                    ("America/Anchorage", "America/Anchorage"),
+                    ("Pacific/Honolulu", "Pacific/Honolulu"),
+                    ("America/Toronto", "America/Toronto"),
+                    ("America/Vancouver", "America/Vancouver"),
+                    ("Europe/London", "Europe/London"),
+                    ("Europe/Paris", "Europe/Paris"),
+                    ("Europe/Berlin", "Europe/Berlin"),
+                    ("Asia/Tokyo", "Asia/Tokyo"),
+                    ("Asia/Shanghai", "Asia/Shanghai"),
+                    ("Asia/Kolkata", "Asia/Kolkata"),
+                    ("Australia/Sydney", "Australia/Sydney"),
+                    ("UTC", "UTC"),
+                ] %}
+                {% for val, label in tz_options %}
+                <option value="{{ val }}" {{ 'selected' if settings.timezone == val }}>{{ label }}</option>
+                {% endfor %}
+            </select>
             <button type="button" class="btn btn-red" style="padding:6px 14px;font-size:13px;" onclick="saveTimezone()">Save</button>
             <span id="tzResult" style="font-size:13px;"></span>
         </div>
-        <div class="hint" style="margin-top:4px;">IANA timezone (e.g. America/Chicago, America/New_York, Europe/London)</div>
     </div>
 </div>
 
@@ -674,7 +706,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <form id="testForm">
         <div class="form-group">
             <label>Test Recipient Email</label>
-            <input type="email" name="test_email" value="{{ settings.smtp_user }}" required>
+            <input type="email" name="test_email" value="{{ settings.get('last_test_recipient', '') or settings.smtp_user }}" required>
         </div>
         <button type="submit" class="btn btn-red">Send Now</button>
         <span id="testResult" style="margin-left:12px;font-size:13px;"></span>
