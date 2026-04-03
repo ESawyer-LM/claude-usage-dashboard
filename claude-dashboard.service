@@ -1,0 +1,26 @@
+[Unit]
+Description=Claude Usage Dashboard — Lou Malnati's Pizzeria
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=claude-dashboard
+Group=claude-dashboard
+WorkingDirectory=/opt/claude-dashboard
+EnvironmentFile=/opt/claude-dashboard/.env
+ExecStart=/opt/claude-dashboard/venv/bin/python main.py
+Restart=on-failure
+RestartSec=15s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-dashboard
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/claude-dashboard/output
+
+[Install]
+WantedBy=multi-user.target

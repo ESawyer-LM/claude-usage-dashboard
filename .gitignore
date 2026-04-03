@@ -1,0 +1,18 @@
+# Secrets
+.env
+output/
+*.pyc
+__pycache__/
+venv/
+
+# Fernet key and Flask secret
+.fernet_key
+.flask_secret
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
