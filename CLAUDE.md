@@ -150,3 +150,11 @@ ls -lh /opt/claude-dashboard/output/       # Debug screenshots, HTML, PDF, logs
 - Claude Code accent: `#7c3aed` (purple)
 - Font: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
 - Logo badge: white circle with "LM" in red
+
+---
+
+## Versioning & Changelog
+
+- Version is defined in `config.py` as `VERSION` and displayed in HTML/PDF report footers.
+- **CHANGELOG.md** must be updated with every version bump. Use [Keep a Changelog](https://keepachangelog.com/) format with sections: Added, Changed, Fixed, Removed.
+- When publishing a new version: bump `VERSION` in `config.py`, add a new entry to `CHANGELOG.md`, and tag the commit with `vX.Y.Z`.
