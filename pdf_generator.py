@@ -12,7 +12,6 @@ from collections import Counter
 from datetime import datetime
 
 import matplotlib.pyplot as plt
-import numpy as np
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
@@ -107,14 +106,14 @@ class HeaderBanner(Flowable):
 # Custom Flowable: Stat Card Row
 # ---------------------------------------------------------------------------
 class StatCardRow(Flowable):
-    """Four stat cards side by side with colored left accent bars."""
+    """Four stat cards with uppercase label, large value, and subtitle."""
 
     def __init__(self, cards, width=USABLE_WIDTH):
-        """cards: list of (label, value, accent_color_hex)"""
+        """cards: list of (label, value, subtitle)"""
         super().__init__()
         self.cards = cards
         self._width = width
-        self.height = 60
+        self.height = 80
 
     def wrap(self, availWidth, availHeight):
         return self._width, self.height
@@ -122,30 +121,97 @@ class StatCardRow(Flowable):
     def draw(self):
         c = self.canv
         gap = 10
-        card_w = (self._width - gap * 3) / 4
+        card_w = (self._width - gap * (len(self.cards) - 1)) / len(self.cards)
         h = self.height
 
-        for i, (label, value, accent) in enumerate(self.cards):
+        for i, card in enumerate(self.cards):
+            label, value, subtitle = card[0], card[1], card[2] if len(card) > 2 else ""
             x = i * (card_w + gap)
 
-            # Card background
+            # Card border
             c.setFillColor(colors.white)
             c.setStrokeColor(colors.HexColor("#e5e7eb"))
+            c.setLineWidth(0.5)
             c.roundRect(x, 0, card_w, h, 6, fill=1, stroke=1)
 
-            # Left accent bar
-            c.setFillColor(colors.HexColor(accent))
-            c.roundRect(x, 0, 4, h, 2, fill=1, stroke=0)
-
-            # Value
-            c.setFillColor(colors.HexColor(accent))
-            c.setFont("Helvetica-Bold", 20)
-            c.drawString(x + 16, h / 2 + 2, str(value))
-
-            # Label
+            # Uppercase label
             c.setFillColor(colors.HexColor(LM_GRAY))
-            c.setFont("Helvetica", 9)
-            c.drawString(x + 16, h / 2 - 16, label)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(x + 12, h - 18, label.upper())
+
+            # Large value
+            c.setFillColor(colors.HexColor("#111827"))
+            c.setFont("Helvetica-Bold", 22)
+            c.drawString(x + 12, h - 44, str(value))
+
+            # Subtitle
+            if subtitle:
+                c.setFillColor(colors.HexColor("#9ca3af"))
+                c.setFont("Helvetica", 7)
+                # Truncate subtitle if too long
+                max_w = card_w - 24
+                text = subtitle
+                while c.stringWidth(text, "Helvetica", 7) > max_w and len(text) > 10:
+                    text = text[:-4] + "..."
+                c.drawString(x + 12, 10, text)
+
+
+# ---------------------------------------------------------------------------
+# Custom Flowable: Section Header
+# ---------------------------------------------------------------------------
+class SectionHeader(Flowable):
+    """Gray uppercase section divider with red left accent bar."""
+
+    def __init__(self, text, width=USABLE_WIDTH):
+        super().__init__()
+        self.text = text
+        self._width = width
+        self.height = 24
+
+    def wrap(self, availWidth, availHeight):
+        return self._width, self.height
+
+    def draw(self):
+        c = self.canv
+        # Red accent bar
+        c.setFillColor(colors.HexColor(LM_RED))
+        c.rect(0, 4, 3, self.height - 8, fill=1, stroke=0)
+        # Text
+        c.setFillColor(colors.HexColor(LM_GRAY))
+        c.setFont("Helvetica-Bold", 7)
+        c.drawString(12, 9, self.text.upper())
+
+
+# ---------------------------------------------------------------------------
+# Custom Flowable: Stats Summary Row (below charts)
+# ---------------------------------------------------------------------------
+class StatsSummaryRow(Flowable):
+    """Row of summary stats displayed below a chart."""
+
+    def __init__(self, items, width=USABLE_WIDTH):
+        """items: list of (value, label, color_hex_or_None)"""
+        super().__init__()
+        self.items = items
+        self._width = width
+        self.height = 40
+
+    def wrap(self, availWidth, availHeight):
+        return self._width, self.height
+
+    def draw(self):
+        c = self.canv
+        n = len(self.items)
+        col_w = self._width / n
+
+        for i, (value, label, color) in enumerate(self.items):
+            x = i * col_w + 12
+            val_color = color or "#111827"
+            c.setFillColor(colors.HexColor(val_color))
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(x, 18, str(value))
+            c.setFillColor(colors.HexColor("#9ca3af"))
+            c.setFont("Helvetica", 7)
+            c.drawString(x, 6, label)
 
 
 # ---------------------------------------------------------------------------
@@ -160,59 +226,39 @@ def _fig_to_image(fig, width, height, dpi=150):
     return Image(buf, width=width, height=height)
 
 
-def _make_donut_chart(labels, sizes, title, chart_colors):
-    """Create a matplotlib donut chart."""
-    fig, ax = plt.subplots(figsize=(4, 3))
-    fig.patch.set_facecolor("white")
 
-    if sum(sizes) == 0:
-        sizes = [1]
-        labels = ["No Data"]
-        chart_colors = ["#e5e7eb"]
-
-    wedges, texts, autotexts = ax.pie(
-        sizes,
-        labels=labels,
-        colors=chart_colors,
-        autopct="%1.0f%%",
-        pctdistance=0.75,
-        startangle=90,
-        textprops={"fontsize": 8},
-    )
-    for t in autotexts:
-        t.set_fontsize(8)
-        t.set_fontweight("bold")
-
-    # White center circle for donut effect
-    centre = plt.Circle((0, 0), 0.55, fc="white")
-    ax.add_artist(centre)
-    ax.set_title(title, fontsize=10, fontweight="bold", pad=10)
-
-    return fig
-
-
-def _make_line_chart(labels, data, title):
-    """Create a matplotlib line chart for daily chats."""
+def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
+    """Create a matplotlib line chart with optional data point labels."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
     fig.patch.set_facecolor("white")
 
     if not data:
         ax.text(0.5, 0.5, "No data available", ha="center", va="center", transform=ax.transAxes)
-        ax.set_title(title, fontsize=10, fontweight="bold")
+        if title:
+            ax.set_title(title, fontsize=10, fontweight="bold")
         return fig
 
     x = range(len(data))
-    ax.fill_between(x, data, alpha=0.1, color=LM_RED)
-    ax.plot(x, data, color=LM_RED, linewidth=2, marker="o", markersize=6,
+    ax.fill_between(x, data, alpha=0.08, color=LM_RED)
+    ax.plot(x, data, color=LM_RED, linewidth=2, marker="o", markersize=7,
             markerfacecolor="white", markeredgecolor=LM_RED, markeredgewidth=2)
+
+    # Data point labels
+    if show_labels:
+        y_range = max(data) - min(data) if max(data) != min(data) else max(data) or 1
+        for i, v in enumerate(data):
+            ax.annotate(str(int(v)), (i, v), textcoords="offset points",
+                        xytext=(0, 10), ha="center", fontsize=7, fontweight="bold",
+                        color=LM_RED)
 
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, fontsize=7, rotation=0)
-    ax.set_title(title, fontsize=10, fontweight="bold", pad=10)
+    if title:
+        ax.set_title(title, fontsize=11, fontweight="bold", loc="left", pad=10)
     ax.grid(axis="y", alpha=0.3)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.set_ylim(bottom=0)
+    ax.set_ylim(bottom=0, top=max(data) * 1.3 if data else 1)
 
     fig.tight_layout()
     return fig
@@ -254,77 +300,116 @@ def _build_member_table(members, top_projects, top_artifacts):
     styles = getSampleStyleSheet()
 
     cell_style = ParagraphStyle("cell", parent=styles["Normal"], fontSize=8, leading=10)
+    cell_bold = ParagraphStyle("cellbold", parent=styles["Normal"], fontSize=8, leading=10,
+                               fontName="Helvetica-Bold")
+    cell_center = ParagraphStyle("cellcenter", parent=cell_style, alignment=TA_CENTER)
+    cell_center_bold = ParagraphStyle("cellcenterbold", parent=cell_bold, alignment=TA_CENTER)
     header_style = ParagraphStyle(
-        "header", parent=styles["Normal"], fontSize=8, leading=10,
+        "header", parent=styles["Normal"], fontSize=7, leading=10,
         textColor=colors.HexColor("#374151"), fontName="Helvetica-Bold"
     )
+    header_center = ParagraphStyle("headercenter", parent=header_style, alignment=TA_CENTER)
+    email_style = ParagraphStyle("email", parent=styles["Normal"], fontSize=7, leading=9,
+                                 textColor=colors.HexColor("#9ca3af"))
 
     project_lookup = {u["name"]: u["count"] for u in top_projects}
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
 
     # Header row
-    headers = ["Member", "Role", "Status", "Email", "Projects", "Artifacts"]
-    header_row = [Paragraph(h, header_style) for h in headers]
+    headers = [
+        Paragraph("MEMBER", header_style),
+        Paragraph("ROLE", header_center),
+        Paragraph("TIER", header_center),
+        Paragraph("STATUS", header_center),
+        Paragraph("PROJECTS<br/>MTD", header_center),
+        Paragraph("ARTIFACTS<br/>MTD", header_center),
+    ]
 
-    data_rows = [header_row]
+    data_rows = [headers]
     for m in members:
         name = m.get("name", "")
         role = m.get("role", "User")
         status = m.get("status", "Active")
         email = m.get("email", "")
+        seat_tier = m.get("seat_tier", "team_standard")
+        is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
+        tier_label = "Premium" if is_premium else "Standard"
         projects = project_lookup.get(name, 0)
         artifacts = artifact_lookup.get(name, 0)
 
-        # Color role text
-        role_color = LM_RED if "owner" in role.lower() else "#374151"
-        role_p = Paragraph(f'<font color="{role_color}">{role}</font>', cell_style)
+        # Member: name (bold) + premium badge + email
+        premium_badge = ' <font color="#7c3aed" backColor="#ede9fe" size="6">&nbsp;Premium&nbsp;</font>' if is_premium else ""
+        name_p = Paragraph(
+            f'<b>{name}</b>{premium_badge}<br/><font color="#9ca3af" size="7">{email}</font>',
+            cell_style,
+        )
+
+        # Role badge
+        if "primary" in role.lower() and "owner" in role.lower():
+            role_p = Paragraph(
+                f'<font color="white" backColor="{LM_RED}" size="7">&nbsp;Primary Owner&nbsp;</font>',
+                cell_center,
+            )
+        elif "owner" in role.lower():
+            role_p = Paragraph(
+                f'<font color="white" backColor="{LM_GREEN}" size="7">&nbsp;Owner&nbsp;</font>',
+                cell_center,
+            )
+        else:
+            role_p = Paragraph(
+                '<font color="#374151" backColor="#f3f4f6" size="7">&nbsp;User&nbsp;</font>',
+                cell_center,
+            )
 
         # Status badge
         if status == "Active":
             status_p = Paragraph(
-                '<font color="#15803d" backColor="#dcfce7">&nbsp;Active&nbsp;</font>', cell_style
+                '<font color="#15803d"><b>Active</b></font>', cell_center,
             )
         else:
             status_p = Paragraph(
-                '<font color="#b45309" backColor="#fef3c7">&nbsp;Pending&nbsp;</font>', cell_style
+                '<font color="#b45309" backColor="#fef3c7" size="7">&nbsp;Pending&nbsp;</font>',
+                cell_center,
             )
 
+        # Projects/Artifacts - bold if > 0
+        proj_style = cell_center_bold if projects > 0 else cell_center
+        art_style = cell_center_bold if artifacts > 0 else cell_center
+
         data_rows.append([
-            Paragraph(name, cell_style),
+            name_p,
             role_p,
+            Paragraph(tier_label, cell_center),
             status_p,
-            Paragraph(email, cell_style),
-            Paragraph(str(projects), cell_style),
-            Paragraph(str(artifacts), cell_style),
+            Paragraph(str(projects), proj_style),
+            Paragraph(str(artifacts), art_style),
         ])
 
-    # Column widths: 33%, 16%, 13%, 19%, 10%, 9%
+    # Column widths
     col_widths = [
-        USABLE_WIDTH * 0.33,
-        USABLE_WIDTH * 0.16,
+        USABLE_WIDTH * 0.30,
+        USABLE_WIDTH * 0.15,
+        USABLE_WIDTH * 0.12,
         USABLE_WIDTH * 0.13,
-        USABLE_WIDTH * 0.19,
-        USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.09,
+        USABLE_WIDTH * 0.15,
+        USABLE_WIDTH * 0.15,
     ]
 
     table = Table(data_rows, colWidths=col_widths, repeatRows=1)
 
-    # Table styling
     style_cmds = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(LM_LIGHT_GRAY)),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
         ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#d1d5db")),
         ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
     ]
 
-    # Alternating row colors
     for i in range(1, len(data_rows)):
         if i % 2 == 0:
             style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#fafafa")))
@@ -346,6 +431,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
 
     members = data.get("members", [])
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
+    wau_chart = data.get("wau_chart", {"labels": [], "data": []})
     top_projects = data.get("top_users_projects", [])
     top_artifacts = data.get("top_users_artifacts", [])
     plan_tier = data.get("plan_tier", "Standard")
@@ -355,29 +441,38 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     cc = data.get("claude_code", {})
     cc_summary = cc.get("summary", {})
     cc_users = cc.get("users", [])
-    cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
 
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
+    assigned = active_count + pending_count
+    available = total_seats - assigned
 
-    owners_count = sum(
-        1 for m in members if "owner" in m.get("role", "").lower()
-    )
-    users_count = len(members) - owners_count
-
-    dau = overview.get("dau", {}).get("value", "—")
-    wau = overview.get("wau", {}).get("value", "—")
+    wau_val = overview.get("wau", {}).get("value", "—")
+    wau_change = overview.get("wau", {}).get("change_percent", None)
     utilization = overview.get("utilization", {}).get("value", "—")
     if isinstance(utilization, (int, float)):
-        utilization_str = f"{utilization:.0f}%"
+        utilization_str = f"{utilization:.1f}%"
     else:
         utilization_str = str(utilization)
 
-    today_str = datetime.now().strftime("%B %d, %Y")
+    # Premium members for seat tier subtitle
+    premium_members = [m for m in members
+                       if "tier_1" in m.get("seat_tier", "").lower()
+                       or "premium" in m.get("seat_tier", "").lower()]
+    if premium_members:
+        names = [m.get("name", "").split()[0] + " " + m.get("name", "").split()[-1][0] + "."
+                 if len(m.get("name", "").split()) > 1 else m.get("name", "")
+                 for m in premium_members[:3]]
+        tier_subtitle = f"+{len(premium_members)} Premium ({', '.join(names)})"
+    else:
+        tier_subtitle = "All standard seats"
+
+    now = datetime.now()
+    today_str = now.strftime("%B %d, %Y")
+    month_str = now.strftime("%B %Y")
 
     styles = getSampleStyleSheet()
 
-    # Build the document
     doc = SimpleDocTemplate(
         filepath,
         pagesize=letter,
@@ -392,10 +487,10 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     # --- Header Banner ---
     story.append(HeaderBanner(
         "Claude Usage Dashboard",
-        f"Lou Malnati's Pizzeria \u00b7 {plan_tier} Plan",
+        f"Lou Malnati\u2019s Pizzeria \u00b7 {plan_tier} Plan",
         today_str,
     ))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 14))
 
     # --- Stale data warning ---
     if from_cache:
@@ -411,115 +506,134 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
 
     # --- Stat Cards ---
     story.append(StatCardRow([
-        ("Assigned Seats", f"{active_count + pending_count}/{total_seats}", LM_RED),
-        ("Daily Active", dau, LM_GREEN),
-        ("Weekly Active", wau, "#2563eb"),
-        ("Utilization", utilization_str, LM_AMBER),
+        ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned"),
+        ("Active Members", str(active_count), "Onboarded & using Claude"),
+        ("Pending Invites", str(pending_count), "Haven't accepted invite yet"),
+        ("Seat Tier", plan_tier, tier_subtitle),
     ]))
-    story.append(Spacer(1, 16))
+    story.append(Spacer(1, 18))
 
-    # --- Org Overview (donut charts side by side) ---
-    section_title = ParagraphStyle(
-        "section_title", parent=styles["Normal"], fontSize=12,
-        fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=8,
-        textColor=colors.HexColor("#111827"),
-    )
-    story.append(Paragraph("Org Overview", section_title))
+    # =======================================================================
+    # ACTIVITY ANALYTICS
+    # =======================================================================
+    story.append(SectionHeader(
+        "Activity Analytics \u00b7 Claude.ai/Analytics \u00b7 MTD \u00b7 Updated Daily"
+    ))
+    story.append(Spacer(1, 10))
 
-    fig_status = _make_donut_chart(
-        ["Active", "Pending"], [active_count, pending_count],
-        "Member Status", [LM_GREEN, LM_AMBER]
-    )
-    fig_roles = _make_donut_chart(
-        ["Owners", "Users"], [owners_count, users_count],
-        "Role Distribution", [LM_RED, LM_GRAY]
-    )
+    # --- Daily Chat Activity ---
+    chat_data = daily_chats.get("data", [])
+    chat_labels = daily_chats.get("labels", [])
+    fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
+    story.append(_fig_to_image(fig_chats, USABLE_WIDTH, 2.2 * inch))
 
-    donut_w = USABLE_WIDTH / 2 - 10
-    donut_h = donut_w * 0.75
-    img_status = _fig_to_image(fig_status, donut_w, donut_h)
-    img_roles = _fig_to_image(fig_roles, donut_w, donut_h)
+    # Chat summary stats
+    if chat_data:
+        total_chats = sum(chat_data)
+        peak_chats = max(chat_data)
+        num_days = len(chat_data)
+        avg_chats = total_chats / num_days if num_days else 0
+        engagement = "\u2191 Active" if total_chats > 0 else "\u2014 No activity"
+        story.append(StatsSummaryRow([
+            (str(total_chats), f"Total chats ({num_days} days)", None),
+            (str(peak_chats), "Peak daily chats", None),
+            (f"{avg_chats:.1f}", "Avg chats / day", None),
+            (engagement, "Team is engaged" if total_chats > 0 else "", LM_GREEN if total_chats > 0 else LM_GRAY),
+        ]))
+    story.append(Spacer(1, 18))
 
-    donut_table = Table([[img_status, img_roles]], colWidths=[USABLE_WIDTH / 2, USABLE_WIDTH / 2])
-    donut_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    story.append(donut_table)
-    story.append(Spacer(1, 16))
+    # =======================================================================
+    # WEEKLY ACTIVE USERS
+    # =======================================================================
+    story.append(SectionHeader(
+        "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window"
+    ))
+    story.append(Spacer(1, 10))
 
-    # --- Activity Analytics ---
-    story.append(Paragraph("Activity Analytics", section_title))
+    wau_data = wau_chart.get("data", [])
+    wau_labels = wau_chart.get("labels", [])
+    if wau_data:
+        fig_wau = _make_line_chart(wau_labels, wau_data, f"Weekly Active Users (WAU)")
+        story.append(_fig_to_image(fig_wau, USABLE_WIDTH, 2.2 * inch))
 
-    # Daily Chats line chart
-    fig_chats = _make_line_chart(
-        daily_chats.get("labels", []),
-        daily_chats.get("data", []),
-        "Daily Chats (Last 7 Days)"
-    )
-    story.append(_fig_to_image(fig_chats, USABLE_WIDTH, 2.0 * inch))
-    story.append(Spacer(1, 12))
+        # WAU summary
+        current_wau = wau_data[-1] if wau_data else 0
+        first_wau = wau_data[0] if wau_data else 0
+        if first_wau and first_wau > 0:
+            growth_pct = ((current_wau - first_wau) / first_wau) * 100
+            growth_str = f"+{growth_pct:.0f}%" if growth_pct >= 0 else f"{growth_pct:.0f}%"
+        else:
+            growth_str = "—"
+        wow_str = f"+{wau_change:.1f}%" if wau_change and wau_change >= 0 else (f"{wau_change:.1f}%" if wau_change else "—")
+        first_label = wau_labels[0] if wau_labels else "start"
 
-    # Top Users by Projects
+        story.append(StatsSummaryRow([
+            (str(int(current_wau)), "Current WAU", None),
+            (wow_str, "WoW change", LM_GREEN if wau_change and wau_change >= 0 else LM_RED),
+            (utilization_str, "Utilization rate", None),
+            (growth_str, f"Growth since {first_label}", LM_GREEN if growth_str.startswith("+") else LM_RED),
+        ]))
+    story.append(Spacer(1, 18))
+
+    # --- Top Users by Projects ---
     if top_projects:
         fig_proj = _make_hbar_chart(
             [u["name"] for u in top_projects],
             [u["count"] for u in top_projects],
-            "Top Users by Projects MTD"
+            "Top Users by Projects (MTD)"
         )
-        proj_h = max(1.5, len(top_projects) * 0.25 + 0.6) * inch
+        proj_h = max(1.5, len(top_projects) * 0.35 + 0.8) * inch
         story.append(_fig_to_image(fig_proj, USABLE_WIDTH, proj_h))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 14))
 
-    # Top Users by Artifacts
+    # --- Top Users by Artifacts ---
     if top_artifacts:
         fig_art = _make_hbar_chart(
             [u["name"] for u in top_artifacts],
             [u["count"] for u in top_artifacts],
-            "Top Users by Artifacts MTD"
+            "Top Users by Artifacts (MTD)"
         )
-        art_h = max(1.5, len(top_artifacts) * 0.25 + 0.6) * inch
+        art_h = max(1.5, len(top_artifacts) * 0.35 + 0.8) * inch
         story.append(_fig_to_image(fig_art, USABLE_WIDTH, art_h))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 18))
 
-    # --- Claude Code Analytics ---
+    # =======================================================================
+    # CLAUDE CODE
+    # =======================================================================
     if cc_summary:
-        story.append(Paragraph("Claude Code Analytics (MTD)", section_title))
-
         cc_active = cc_summary.get("active_users", 0)
-        cc_sessions = cc_summary.get("total_sessions", 0)
         cc_lines = cc_summary.get("total_lines_accepted", 0)
-        cc_cost = cc_summary.get("total_cost_usd", "0")
+        cc_accept = cc_summary.get("tool_accept_rate", 0)
         try:
-            cc_cost_str = f"${float(cc_cost):.2f}"
+            cc_accept_str = f"{float(cc_accept) * 100:.1f}%" if float(cc_accept) <= 1 else f"{float(cc_accept):.1f}%"
         except (ValueError, TypeError):
-            cc_cost_str = "$0.00"
+            cc_accept_str = "—"
+
+        user_label = "Active User" if cc_active == 1 else "Active Users"
+        story.append(SectionHeader(
+            f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} {user_label}"
+        ))
+        story.append(Spacer(1, 10))
+
+        # Top CC user
+        top_cc = cc_users[0] if cc_users else {}
+        top_cc_name = top_cc.get("name", "—")
+        top_cc_email = top_cc.get("email", "")
+        top_cc_lines = top_cc.get("total_lines_accepted", 0)
+        top_cc_subtitle = f"{top_cc_email} \u00b7 {top_cc_lines:,} lines" if top_cc_email else ""
 
         story.append(StatCardRow([
-            ("CC Active Users", cc_active, "#7c3aed"),
-            ("CC Sessions", cc_sessions, "#7c3aed"),
-            ("Lines Accepted", cc_lines, LM_GREEN),
-            ("CC Cost", cc_cost_str, LM_AMBER),
+            ("Lines Accepted", f"{cc_lines:,}", f"{month_str} MTD"),
+            ("Acceptance Rate", cc_accept_str, "Suggestion accept rate"),
+            ("Top User", top_cc_name, top_cc_subtitle),
         ]))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 18))
 
-        # Claude Code sessions line chart
-        cc_labels = cc_activity_chart.get("labels", [])
-        cc_data = cc_activity_chart.get("data", [])
-        if cc_labels and cc_data:
-            fig_cc = _make_line_chart(cc_labels, cc_data, "Claude Code Sessions (Daily)")
-            story.append(_fig_to_image(fig_cc, USABLE_WIDTH, 2.0 * inch))
-            story.append(Spacer(1, 12))
-
-        # Top Claude Code users bar chart
-        if cc_users:
-            cc_names = [u.get("name", "?") for u in cc_users[:10]]
-            cc_vals = [u.get("total_sessions", 0) for u in cc_users[:10]]
-            fig_cc_users = _make_hbar_chart(cc_names, cc_vals, "Top Claude Code Users (Sessions MTD)")
-            cc_h = max(1.5, len(cc_names) * 0.25 + 0.6) * inch
-            story.append(_fig_to_image(fig_cc_users, USABLE_WIDTH, cc_h))
-            story.append(Spacer(1, 12))
-
-    # --- Member Directory Table ---
-    story.append(Paragraph("Member Directory", section_title))
-    story.append(Spacer(1, 4))
+    # =======================================================================
+    # ALL MEMBERS
+    # =======================================================================
+    story.append(SectionHeader("All Members"))
+    story.append(Spacer(1, 10))
 
     if members:
         member_table = _build_member_table(members, top_projects, top_artifacts)
@@ -536,8 +650,8 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         alignment=TA_CENTER, textColor=colors.HexColor("#9ca3af"),
     )
     story.append(Paragraph(
-        f"Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; "
-        f"Lou Malnati's Pizzeria &middot; {today_str} &middot; v{config.VERSION}",
+        f"Data sourced from Claude.ai Admin Console \u00b7 "
+        f"Lou Malnati\u2019s Pizzeria organization \u00b7 v{config.VERSION}",
         footer_style,
     ))
 

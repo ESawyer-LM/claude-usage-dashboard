@@ -2,19 +2,28 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
-## [0.2.12] - 2026-04-03
-
-### Added
-- Collapsible card sections in admin UI (Cards 2-5) with chevron indicators and smooth animations
-- localStorage persistence for card collapse state across page reloads
-- Timezone setting prominently displayed in System Status card with dedicated save button
-- Timezone validation rejects invalid IANA timezone strings with user-friendly error
-- `_format_time()` helper for human-readable datetime formatting in configured timezone
+## [0.3.0] - 2026-04-03
 
 ### Changed
-- Status times (last scrape, last email, next runs) now display in configured timezone (e.g. "Apr 3, 2026 7:00 AM CDT") instead of raw ISO strings
-- Timezone input moved from Schedule & Recipients card to System Status card for better visibility
-- `/api/status` endpoint now returns formatted times and includes timezone field
+- Complete PDF report redesign to match new layout
+- Stat cards now show uppercase labels, large values, and descriptive subtitles (Total Seats, Active Members, Pending Invites, Seat Tier)
+- Section headers are gray uppercase dividers with red accent bars
+- Daily Chat Activity section includes summary stats (total, peak, avg, engagement)
+- New Weekly Active Users (WAU) section with timeseries chart and growth metrics
+- Claude Code section simplified to stats row (Lines Accepted, Acceptance Rate, Top User)
+- Member table redesigned with role badges, tier column, premium badges, and colored status indicators
+- Line charts now display data point value labels
+
+### Added
+- WAU timeseries data collection in scraper
+- SectionHeader and StatsSummaryRow custom Flowables
+- Collapsible card sections in admin UI with chevron indicators and smooth animations
+- Timezone setting in System Status card with validation
+- Human-readable datetime formatting in configured timezone
+
+### Removed
+- Donut charts (Org Overview section)
+- Claude Code sessions chart and top CC users chart (replaced by compact stats row)
 
 ## [0.2.10] - 2026-04-03
 
