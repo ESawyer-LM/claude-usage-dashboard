@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 import json
 import logging
@@ -66,6 +66,14 @@ REPORT_TYPES = {
         "name": "Full Report",
         "description": "All sections including member directory",
         "sections": ["overview", "activity", "usage", "claude_code", "members"],
+    },
+    "expanded": {
+        "name": "Expanded Report",
+        "description": "Full report plus trend metrics, stickiness, usage stats, DAU chart, and chat rankings",
+        "sections": [
+            "overview", "activity", "usage", "claude_code", "members",
+            "trends", "stickiness", "usage_stats", "dau_chart", "chat_rankings",
+        ],
     },
 }
 
