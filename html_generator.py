@@ -74,21 +74,12 @@ def generate_html(data: dict) -> str:
     cc_summary = cc.get("summary", {})
     cc_users = cc.get("users", [])
     cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
+    cc_lines_chart = cc.get("lines_chart", {"labels": [], "data": []})
     cc_active_users = cc_summary.get("active_users", 0)
     cc_sessions = cc_summary.get("total_sessions", 0)
     cc_lines = cc_summary.get("total_lines_accepted", 0)
     cc_commits = cc_summary.get("commits_created", 0)
     cc_prs = cc_summary.get("pull_requests_created", 0)
-    cc_cost = cc_summary.get("total_cost_usd", "0")
-    try:
-        cc_cost_str = f"${float(cc_cost):.2f}"
-    except (ValueError, TypeError):
-        cc_cost_str = "$0.00"
-    cc_accept_rate = cc_summary.get("tool_accept_rate", 0)
-    if isinstance(cc_accept_rate, (int, float)):
-        cc_accept_rate_str = f"{cc_accept_rate:.0f}%"
-    else:
-        cc_accept_rate_str = "—"
 
     # Build member project/artifact lookup from top_users data
     project_lookup = {u["name"]: u["count"] for u in top_projects}
@@ -101,8 +92,11 @@ def generate_html(data: dict) -> str:
     # Claude Code chart data
     cc_activity_labels_json = json.dumps(cc_activity_chart.get("labels", []))
     cc_activity_data_json = json.dumps(cc_activity_chart.get("data", []))
+    cc_lines_labels_json = json.dumps(cc_lines_chart.get("labels", []))
+    cc_lines_data_json = json.dumps(cc_lines_chart.get("data", []))
     cc_user_names_json = json.dumps([u.get("name", "?") for u in cc_users[:10]])
     cc_user_sessions_json = json.dumps([u.get("total_sessions", 0) for u in cc_users[:10]])
+    cc_user_lines_json = json.dumps([u.get("total_lines_accepted", 0) for u in cc_users[:10]])
     project_names_json = json.dumps([u["name"] for u in top_projects])
     project_counts_json = json.dumps([u["count"] for u in top_projects])
     artifact_names_json = json.dumps([u["name"] for u in top_artifacts])
@@ -159,6 +153,39 @@ def generate_html(data: dict) -> str:
                     <td style="padding:12px 16px;">{badge}</td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{projects_mtd}</td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{artifacts_mtd}</td>
+                </tr>"""
+
+    # Claude Code user table rows
+    cc_user_rows = ""
+    for u in cc_users:
+        u_name = _escape(u.get("name", ""))
+        u_email = _escape(u.get("email", ""))
+        u_initials = _escape(_get_initials(u.get("name", "")))
+        u_sessions = u.get("total_sessions", 0)
+        u_lines = u.get("total_lines_accepted", 0)
+        u_commits = u.get("commits_created", 0)
+        u_prs_val = u.get("pull_requests_created", 0)
+        u_last_active = _escape(u.get("last_active", "—") or "—")
+        # Format last_active date if it looks like ISO
+        if u_last_active and u_last_active != "—" and len(u_last_active) >= 10:
+            u_last_active = u_last_active[:10]
+
+        cc_user_rows += f"""
+                <tr>
+                    <td style="padding:12px 16px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:36px;height:36px;border-radius:50%;background:#7c3aed;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{u_initials}</div>
+                            <div>
+                                <div style="font-weight:500;color:#111827;">{u_name}</div>
+                                <div style="font-size:12px;color:#6b7280;">{u_email}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_sessions}</td>
+                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_lines:,}</td>
+                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_commits}</td>
+                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
+                    <td style="padding:12px 16px;color:#374151;">{u_last_active}</td>
                 </tr>"""
 
     return f"""<!DOCTYPE html>
@@ -339,7 +366,7 @@ def generate_html(data: dict) -> str:
         <!-- Claude Code Analytics -->
         <div style="margin-bottom:20px;">
             <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Claude Code Analytics (MTD)</h3>
-            <div class="stats-row" style="grid-template-columns:repeat(6,1fr);">
+            <div class="stats-row" style="grid-template-columns:repeat(5,1fr);">
                 <div class="stat-card">
                     <div class="stat-label">Active Users</div>
                     <div class="stat-value" style="color:#7c3aed;font-size:24px;">{cc_active_users}</div>
@@ -350,7 +377,7 @@ def generate_html(data: dict) -> str:
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Lines Accepted</div>
-                    <div class="stat-value" style="color:#16a34a;font-size:24px;">{cc_lines}</div>
+                    <div class="stat-value" style="color:#16a34a;font-size:24px;">{cc_lines:,}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Commits</div>
@@ -360,10 +387,6 @@ def generate_html(data: dict) -> str:
                     <div class="stat-label">Pull Requests</div>
                     <div class="stat-value" style="color:#2563eb;font-size:24px;">{cc_prs}</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Cost</div>
-                    <div class="stat-value" style="color:#d97706;font-size:24px;">{cc_cost_str}</div>
-                </div>
             </div>
             <div class="charts-row-2" style="margin-top:16px;">
                 <div class="chart-card">
@@ -371,10 +394,40 @@ def generate_html(data: dict) -> str:
                     <canvas id="ccActivityChart"></canvas>
                 </div>
                 <div class="chart-card">
+                    <h3>Claude Code Lines Accepted (Daily)</h3>
+                    <canvas id="ccLinesChart"></canvas>
+                </div>
+            </div>
+            <div class="charts-row-2" style="margin-top:16px;">
+                <div class="chart-card">
                     <h3>Top Claude Code Users (Sessions MTD)</h3>
                     <canvas id="ccUsersChart"></canvas>
                 </div>
+                <div class="chart-card">
+                    <h3>Top Claude Code Users (Lines Accepted MTD)</h3>
+                    <canvas id="ccUsersLinesChart"></canvas>
+                </div>
             </div>
+        </div>
+
+        <!-- Claude Code User Breakdown -->
+        <div class="table-card">
+            <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Claude Code User Breakdown (MTD)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortCcTable(0)">User</th>
+                        <th onclick="sortCcTable(1)" style="text-align:center;">Sessions</th>
+                        <th onclick="sortCcTable(2)" style="text-align:center;">Lines Accepted</th>
+                        <th onclick="sortCcTable(3)" style="text-align:center;">Commits</th>
+                        <th onclick="sortCcTable(4)" style="text-align:center;">PRs</th>
+                        <th onclick="sortCcTable(5)">Last Active</th>
+                    </tr>
+                </thead>
+                <tbody id="ccUserTableBody">
+                    {cc_user_rows}
+                </tbody>
+            </table>
         </div>
 
         <!-- Member Directory -->
@@ -552,6 +605,36 @@ def generate_html(data: dict) -> str:
             }}
         }});
 
+        // Claude Code Lines Accepted (Line Chart)
+        new Chart(document.getElementById('ccLinesChart'), {{
+            type: 'line',
+            data: {{
+                labels: {cc_lines_labels_json},
+                datasets: [{{
+                    label: 'Lines Accepted',
+                    data: {cc_lines_data_json},
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#16a34a',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    x: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+
         // Top Claude Code Users (Horizontal Bar)
         new Chart(document.getElementById('ccUsersChart'), {{
             type: 'bar',
@@ -561,6 +644,31 @@ def generate_html(data: dict) -> str:
                     label: 'Sessions',
                     data: {cc_user_sessions_json},
                     backgroundColor: '#7c3aed',
+                    borderRadius: 4,
+                    barThickness: 20
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    y: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+
+        // Top Claude Code Users by Lines Accepted (Horizontal Bar)
+        new Chart(document.getElementById('ccUsersLinesChart'), {{
+            type: 'bar',
+            data: {{
+                labels: {cc_user_names_json},
+                datasets: [{{
+                    label: 'Lines Accepted',
+                    data: {cc_user_lines_json},
+                    backgroundColor: '#16a34a',
                     borderRadius: 4,
                     barThickness: 20
                 }}]
@@ -610,6 +718,23 @@ def generate_html(data: dict) -> str:
         }}
         document.getElementById('searchInput').addEventListener('input', filterTable);
         document.getElementById('statusFilter').addEventListener('change', filterTable);
+
+        // --- Claude Code Table Sorting ---
+        let ccSortDir = [1, 1, 1, 1, 1, 1];
+        function sortCcTable(col) {{
+            const tbody = document.getElementById('ccUserTableBody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            ccSortDir[col] *= -1;
+            rows.sort((a, b) => {{
+                let aVal = a.cells[col].textContent.trim();
+                let bVal = b.cells[col].textContent.trim();
+                if (col >= 1 && col <= 4) {{ // Numeric columns
+                    return (parseInt(aVal.replace(/,/g, '')) - parseInt(bVal.replace(/,/g, ''))) * ccSortDir[col];
+                }}
+                return aVal.localeCompare(bVal) * ccSortDir[col];
+            }});
+            rows.forEach(r => tbody.appendChild(r));
+        }}
     </script>
 </body>
 </html>"""

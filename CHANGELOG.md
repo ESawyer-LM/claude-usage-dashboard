@@ -2,6 +2,24 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.5.0] - 2026-04-04
+
+### Added
+- Claude Code daily lines accepted time series chart (HTML and PDF)
+- Claude Code top users by lines accepted horizontal bar chart (HTML and PDF)
+- Claude Code user breakdown table with sessions, lines, commits, PRs, and last active (HTML and PDF)
+- PDF Claude Code section now includes daily sessions chart, daily lines chart, top users chart, and full user table
+- PDF chart helpers now support custom colors for Claude Code purple theming
+
+### Changed
+- Claude Code stat cards reduced from 6 to 5 (removed cost), now showing: Active Users, Sessions, Lines Accepted, Commits, Pull Requests
+- Claude Code user API fetch limit increased from 20 to 50
+- PDF Claude Code section expanded from 3 stat cards to 5 stat cards plus charts and user table
+- PDF section headers now support custom accent bar colors
+
+### Removed
+- Total Cost stat card from Claude Code Analytics section
+
 ## [0.4.5] - 2026-04-04
 
 ### Changed
