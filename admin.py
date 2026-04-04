@@ -6,7 +6,8 @@ Session-based password auth, settings management, and test report triggering.
 import os
 import re
 import threading
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
 
@@ -48,9 +49,18 @@ def create_app(scheduler_ref=None):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     app.secret_key = config.get_flask_secret()
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
 
     # Store scheduler reference for rescheduling
     app.config["SCHEDULER_REF"] = scheduler_ref
+
+    # Endpoints whose auto-refresh should NOT reset the inactivity timer
+    _AUTO_REFRESH_PATHS = {"/api/status", "/logs"}
+
+    @app.before_request
+    def _refresh_session_activity():
+        if session.get("authenticated") and request.path not in _AUTO_REFRESH_PATHS:
+            session["last_active"] = time.time()
 
     # ---------------------------------------------------------------------------
     # Auth decorator
@@ -59,6 +69,10 @@ def create_app(scheduler_ref=None):
         @wraps(f)
         def decorated(*args, **kwargs):
             if not session.get("authenticated"):
+                return redirect(url_for("login"))
+            last = session.get("last_active")
+            if last and time.time() - last > 15 * 60:
+                session.clear()
                 return redirect(url_for("login"))
             return f(*args, **kwargs)
         return decorated
@@ -77,7 +91,9 @@ def create_app(scheduler_ref=None):
         if request.method == "POST":
             password = request.form.get("password", "")
             if password and password == config.ADMIN_PASSWORD:
+                session.permanent = True
                 session["authenticated"] = True
+                session["last_active"] = time.time()
                 return redirect(url_for("dashboard"))
             return render_template_string(LOGIN_TEMPLATE, error="Invalid password")
         return render_template_string(LOGIN_TEMPLATE, error=None)
@@ -86,6 +102,12 @@ def create_app(scheduler_ref=None):
     def logout():
         session.clear()
         return redirect(url_for("login"))
+
+    @app.route("/api/keep-alive", methods=["POST"])
+    @login_required
+    def api_keep_alive():
+        session["last_active"] = time.time()
+        return jsonify({"ok": True})
 
     @app.route("/dashboard")
     @login_required
@@ -1334,7 +1356,69 @@ setInterval(function() {
         })
         .catch(() => {});
 }, 30000);
+""" + """
+// --- Inactivity auto-logout ---
+(function() {
+    var WARN_AFTER = 14 * 60 * 1000;   // 14 minutes
+    var LOGOUT_AFTER = 60 * 1000;       // 1 minute countdown
+    var warnTimer, countdownInterval, secondsLeft;
+
+    var overlay = document.getElementById('inactivityModal');
+    var countdownEl = document.getElementById('inactivityCountdown');
+
+    function resetTimer() {
+        clearTimeout(warnTimer);
+        clearInterval(countdownInterval);
+        overlay.style.display = 'none';
+        warnTimer = setTimeout(showWarning, WARN_AFTER);
+    }
+
+    function showWarning() {
+        secondsLeft = LOGOUT_AFTER / 1000;
+        countdownEl.textContent = secondsLeft;
+        overlay.style.display = 'flex';
+        countdownInterval = setInterval(function() {
+            secondsLeft--;
+            countdownEl.textContent = secondsLeft;
+            if (secondsLeft <= 0) {
+                clearInterval(countdownInterval);
+                // POST to logout then redirect
+                fetch('/logout', {method: 'POST'}).finally(function() {
+                    window.location.href = '/login';
+                });
+            }
+        }, 1000);
+    }
+
+    document.getElementById('keepAliveBtn').addEventListener('click', function() {
+        fetch('/api/keep-alive', {method: 'POST'})
+            .then(function() { resetTimer(); })
+            .catch(function() { resetTimer(); });
+    });
+
+    // Track user activity (debounced)
+    var debounce;
+    function onActivity() {
+        clearTimeout(debounce);
+        debounce = setTimeout(resetTimer, 200);
+    }
+    ['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+        document.addEventListener(evt, onActivity, {passive: true});
+    });
+
+    // Start the timer
+    resetTimer();
+})();
 </script>
+<!-- Inactivity warning modal -->
+<div id="inactivityModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:12px;padding:32px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);text-align:center;">
+        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;">Session Expiring</h2>
+        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
+        <button id="keepAliveBtn" style="background:#C8102E;color:white;border:none;padding:10px 32px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">Stay Signed In</button>
+    </div>
+</div>
 </body></html>"""
 
 LOGS_TEMPLATE = """<!DOCTYPE html>
@@ -1377,5 +1461,64 @@ setInterval(function() {
         }
     }).catch(() => {});
 }, 10000);
+
+// --- Inactivity auto-logout ---
+(function() {
+    var WARN_AFTER = 14 * 60 * 1000;
+    var LOGOUT_AFTER = 60 * 1000;
+    var warnTimer, countdownInterval, secondsLeft;
+
+    var overlay = document.getElementById('inactivityModal');
+    var countdownEl = document.getElementById('inactivityCountdown');
+
+    function resetTimer() {
+        clearTimeout(warnTimer);
+        clearInterval(countdownInterval);
+        overlay.style.display = 'none';
+        warnTimer = setTimeout(showWarning, WARN_AFTER);
+    }
+
+    function showWarning() {
+        secondsLeft = LOGOUT_AFTER / 1000;
+        countdownEl.textContent = secondsLeft;
+        overlay.style.display = 'flex';
+        countdownInterval = setInterval(function() {
+            secondsLeft--;
+            countdownEl.textContent = secondsLeft;
+            if (secondsLeft <= 0) {
+                clearInterval(countdownInterval);
+                fetch('/logout', {method: 'POST'}).finally(function() {
+                    window.location.href = '/login';
+                });
+            }
+        }, 1000);
+    }
+
+    document.getElementById('keepAliveBtn').addEventListener('click', function() {
+        fetch('/api/keep-alive', {method: 'POST'})
+            .then(function() { resetTimer(); })
+            .catch(function() { resetTimer(); });
+    });
+
+    var debounce;
+    function onActivity() {
+        clearTimeout(debounce);
+        debounce = setTimeout(resetTimer, 200);
+    }
+    ['mousemove','keydown','click','scroll','touchstart'].forEach(function(evt) {
+        document.addEventListener(evt, onActivity, {passive: true});
+    });
+
+    resetTimer();
+})();
 </script>
+<!-- Inactivity warning modal -->
+<div id="inactivityModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:12px;padding:32px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);text-align:center;">
+        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;">Session Expiring</h2>
+        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
+        <button id="keepAliveBtn" style="background:#C8102E;color:white;border:none;padding:10px 32px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">Stay Signed In</button>
+    </div>
+</div>
 </body></html>"""
