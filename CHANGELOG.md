@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.7.0] - 2026-04-04
+
+### Added
+- "Expanded Report" report type with enhanced metrics beyond the standard Full Report
+- Trend arrows (up/down with percentage change) on DAU, WAU, MAU, Utilization stat cards (gated by `trends` section)
+- Stickiness metric (DAU/MAU ratio) stat card (gated by `stickiness` section)
+- Usage summary stat cards: Avg Chats/Day, Projects Created, Artifacts Created with trends (gated by `usage_stats` section)
+- Top Users by Chats MTD horizontal bar chart (gated by `chat_rankings` section)
+- Daily Active Users (DAU) 30-day line chart (gated by `dau_chart` section)
+- DAU timeseries and chat rankings data collection in scraper
+- New scraper return keys: `dau_chart`, `top_users_chats`
+
 ## [0.6.0] - 2026-04-04
 
 ### Added

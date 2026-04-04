@@ -29,6 +29,33 @@ def _get_initials(name: str) -> str:
     return "?"
 
 
+def _trend_badge(change_percent) -> str:
+    """Return an HTML trend badge with arrow and percentage change."""
+    if change_percent is None or change_percent == "\u2014":
+        return ""
+    try:
+        val = float(change_percent)
+    except (TypeError, ValueError):
+        return ""
+    if val > 0:
+        arrow = "&#9650;"
+        color = "#16a34a"
+        sign = "+"
+    elif val < 0:
+        arrow = "&#9660;"
+        color = "#dc2626"
+        sign = ""
+    else:
+        arrow = "&#9644;"
+        color = "#6b7280"
+        sign = ""
+    return (
+        f'<span style="display:inline-flex;align-items:center;gap:3px;font-size:12px;'
+        f'color:{color};font-weight:500;margin-top:2px;">'
+        f'{arrow} {sign}{val:.0f}%</span>'
+    )
+
+
 def generate_html(data: dict, report_type: str = None) -> str:
     """Generate the complete HTML dashboard string.
 
@@ -70,11 +97,35 @@ def generate_html(data: dict, report_type: str = None) -> str:
     else:
         utilization_str = str(utilization)
 
+    # Trend percentages (expanded report)
+    dau_trend = _trend_badge(overview.get("dau", {}).get("change_percent"))
+    wau_trend = _trend_badge(overview.get("wau", {}).get("change_percent"))
+    mau_trend = _trend_badge(overview.get("mau", {}).get("change_percent"))
+    utilization_trend = _trend_badge(overview.get("utilization", {}).get("change_percent"))
+
+    # Stickiness (expanded report)
+    stickiness = overview.get("stickiness", {})
+    stickiness_val = stickiness.get("value") if isinstance(stickiness, dict) else stickiness
+    if isinstance(stickiness_val, (int, float)):
+        stickiness_str = f"{stickiness_val:.0f}%"
+    elif stickiness_val is not None:
+        stickiness_str = str(stickiness_val)
+    else:
+        stickiness_str = "\u2014"
+    stickiness_trend = _trend_badge(stickiness.get("change_percent") if isinstance(stickiness, dict) else None)
+
     # Usage overview metrics
     usage_overview = data.get("usage_overview", {})
-    chats_per_day = usage_overview.get("chats_per_day", {}).get("value", "—")
-    projects_created = usage_overview.get("projects_created", {}).get("value", "—")
-    artifacts_created = usage_overview.get("artifacts_created", {}).get("value", "—")
+    chats_per_day = usage_overview.get("chats_per_day", {}).get("value", "\u2014")
+    projects_created = usage_overview.get("projects_created", {}).get("value", "\u2014")
+    artifacts_created = usage_overview.get("artifacts_created", {}).get("value", "\u2014")
+    chats_per_day_trend = _trend_badge(usage_overview.get("chats_per_day", {}).get("change_percent"))
+    projects_created_trend = _trend_badge(usage_overview.get("projects_created", {}).get("change_percent"))
+    artifacts_created_trend = _trend_badge(usage_overview.get("artifacts_created", {}).get("change_percent"))
+
+    # Top users by chats + DAU chart (expanded report)
+    top_chats = data.get("top_users_chats", [])
+    dau_chart = data.get("dau_chart", {"labels": [], "data": []})
 
     # Claude Code metrics
     cc = data.get("claude_code", {})
@@ -108,6 +159,12 @@ def generate_html(data: dict, report_type: str = None) -> str:
     project_counts_json = json.dumps([u["count"] for u in top_projects])
     artifact_names_json = json.dumps([u["name"] for u in top_artifacts])
     artifact_counts_json = json.dumps([u["count"] for u in top_artifacts])
+
+    # Expanded report chart data
+    chat_user_names_json = json.dumps([u["name"] for u in top_chats])
+    chat_user_counts_json = json.dumps([u["count"] for u in top_chats])
+    dau_labels_json = json.dumps(dau_chart.get("labels", []))
+    dau_data_json = json.dumps(dau_chart.get("data", []))
 
     # WAU chart data (used in activity section)
     wau_chart_data = data.get("wau_chart", {"labels": [], "data": []})
@@ -197,6 +254,43 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
                     <td style="padding:12px 16px;color:#374151;">{u_last_active}</td>
                 </tr>"""
+
+    # Pre-build expanded report conditional HTML (avoids backslash-in-fstring issues)
+    stats_columns = '5' if 'stickiness' in sections else '4'
+    stickiness_card = (
+        f'<div class="stat-card"><div class="stat-label">Stickiness (DAU/MAU)</div>'
+        f'<div class="stat-value" style="color:#8b5cf6;">{stickiness_str}</div>'
+        f'{stickiness_trend}</div>'
+    ) if 'stickiness' in sections else ''
+
+    show_trends = 'trends' in sections
+    dau_trend_html = dau_trend if show_trends else ''
+    wau_trend_html = wau_trend if show_trends else ''
+    mau_trend_html = mau_trend if show_trends else ''
+    utilization_trend_html = utilization_trend if show_trends else ''
+
+    usage_stats_html = ''
+    if 'usage_stats' in sections:
+        usage_stats_html = (
+            f'<div class="stats-row" style="grid-template-columns:repeat(3,1fr);">'
+            f'<div class="stat-card"><div class="stat-label">Avg. Chats / Day</div>'
+            f'<div class="stat-value" style="color:#C8102E;">{chats_per_day}</div>{chats_per_day_trend}</div>'
+            f'<div class="stat-card"><div class="stat-label">Projects Created (MTD)</div>'
+            f'<div class="stat-value" style="color:#C8102E;">{projects_created}</div>{projects_created_trend}</div>'
+            f'<div class="stat-card"><div class="stat-label">Artifacts Created (MTD)</div>'
+            f'<div class="stat-value" style="color:#C8102E;">{artifacts_created}</div>{artifacts_created_trend}</div>'
+            f'</div>'
+        )
+
+    dau_chart_card = (
+        '<div class="chart-card"><h3>Daily Active Users (Last 30 Days)</h3>'
+        '<canvas id="dauChart"></canvas></div>'
+    ) if 'dau_chart' in sections else ''
+
+    chats_ranking_card = (
+        '<div class="chart-card"><h3>Top Users by Chats MTD</h3>'
+        '<canvas id="chatsRankingChart"></canvas></div>'
+    ) if 'chat_rankings' in sections else ''
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -324,7 +418,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
         {stale_banner}
 
         {"" if "overview" not in sections else f'''<!-- Stats Row -->
-        <div class="stats-row">
+        <div class="stats-row" style="grid-template-columns:repeat({stats_columns},1fr);">
             <div class="stat-card">
                 <div class="stat-label">Assigned Seats</div>
                 <div class="stat-value" style="color:#C8102E;">{active_count + pending_count}/{total_seats}</div>
@@ -333,17 +427,23 @@ def generate_html(data: dict, report_type: str = None) -> str:
             <div class="stat-card">
                 <div class="stat-label">Daily Active Users</div>
                 <div class="stat-value" style="color:#16a34a;">{dau}</div>
+                {dau_trend_html}
             </div>
             <div class="stat-card">
                 <div class="stat-label">Weekly Active Users</div>
                 <div class="stat-value" style="color:#2563eb;">{wau}</div>
+                {wau_trend_html}
             </div>
             <div class="stat-card">
                 <div class="stat-label">Utilization</div>
                 <div class="stat-value" style="color:#d97706;">{utilization_str}</div>
-                <div style="font-size:12px;color:#6b7280;margin-top:2px;">MAU: {mau} &middot; {_escape(plan_tier)}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:2px;">MAU: {mau} {mau_trend_html} &middot; {_escape(plan_tier)}</div>
+                {utilization_trend_html}
             </div>
+            {stickiness_card}
         </div>
+
+        {usage_stats_html}
 
         <!-- Org Overview (2-column donut charts) -->
         <div class="charts-row-2">
@@ -358,17 +458,19 @@ def generate_html(data: dict, report_type: str = None) -> str:
         </div>
         '''}
 
-        {"" if "activity" not in sections else f'''<!-- Activity Analytics (full-width charts, stacked) -->
-        <div class="charts-row-3">
+        {"" if "activity" not in sections else f'''<!-- Activity Analytics -->
+        <div class="charts-row-2">
             <div class="chart-card">
                 <h3>Daily Chats (Last 7 Days)</h3>
                 <canvas id="dailyChatsChart"></canvas>
             </div>
+            {dau_chart_card}
         </div>
         '''}
 
         {"" if "usage" not in sections else f'''<!-- Usage Analytics -->
         <div class="charts-row-3">
+            {chats_ranking_card}
             <div class="chart-card">
                 <h3>Top Users by Projects MTD</h3>
                 <canvas id="projectsChart"></canvas>
@@ -583,6 +685,65 @@ def generate_html(data: dict, report_type: str = None) -> str:
                 datasets: [{{
                     label: 'Artifacts',
                     data: {artifact_counts_json},
+                    backgroundColor: '#C8102E',
+                    borderRadius: 4,
+                    barThickness: 20
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    y: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+        '''}
+
+        {"" if "dau_chart" not in sections else f'''
+        // Daily Active Users (Line Chart)
+        new Chart(document.getElementById('dauChart'), {{
+            type: 'line',
+            data: {{
+                labels: {dau_labels_json},
+                datasets: [{{
+                    label: 'DAU',
+                    data: {dau_data_json},
+                    borderColor: '#16a34a',
+                    backgroundColor: 'rgba(22, 163, 74, 0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#16a34a',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    x: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+        '''}
+
+        {"" if "chat_rankings" not in sections else f'''
+        // Top Users by Chats (Horizontal Bar)
+        new Chart(document.getElementById('chatsRankingChart'), {{
+            type: 'bar',
+            data: {{
+                labels: {chat_user_names_json},
+                datasets: [{{
+                    label: 'Chats',
+                    data: {chat_user_counts_json},
                     backgroundColor: '#C8102E',
                     borderRadius: 4,
                     barThickness: 20

@@ -281,6 +281,24 @@ class StatsSummaryRow(Flowable):
 
 
 # ---------------------------------------------------------------------------
+# Trend formatting helper
+# ---------------------------------------------------------------------------
+def _trend_text(change_percent):
+    """Return a formatted trend string for use in stat card subtitles."""
+    if change_percent is None:
+        return ""
+    try:
+        val = float(change_percent)
+    except (TypeError, ValueError):
+        return ""
+    if val > 0:
+        return f"\u2191 +{val:.0f}%"
+    elif val < 0:
+        return f"\u2193 {val:.0f}%"
+    return "\u2014 0%"
+
+
+# ---------------------------------------------------------------------------
 # Matplotlib chart helpers
 # ---------------------------------------------------------------------------
 def _fig_to_image(fig, width, height, dpi=150):
@@ -637,18 +655,48 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
     cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
     cc_lines_chart = cc.get("lines_chart", {"labels": [], "data": []})
 
+    # New data (expanded report)
+    top_chats = data.get("top_users_chats", [])
+    dau_chart_data = data.get("dau_chart", {"labels": [], "data": []})
+    usage_overview = data.get("usage_overview", {})
+
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
     assigned = active_count + pending_count
     available = total_seats - assigned
 
-    wau_val = overview.get("wau", {}).get("value", "—")
+    # Activity metrics + trends
+    dau_val = overview.get("dau", {}).get("value", "\u2014")
+    dau_change = overview.get("dau", {}).get("change_percent", None)
+    wau_val = overview.get("wau", {}).get("value", "\u2014")
     wau_change = overview.get("wau", {}).get("change_percent", None)
-    utilization = overview.get("utilization", {}).get("value", "—")
+    mau_val = overview.get("mau", {}).get("value", "\u2014")
+    mau_change = overview.get("mau", {}).get("change_percent", None)
+    utilization = overview.get("utilization", {}).get("value", "\u2014")
+    utilization_change = overview.get("utilization", {}).get("change_percent", None)
     if isinstance(utilization, (int, float)):
         utilization_str = f"{utilization:.1f}%"
     else:
         utilization_str = str(utilization)
+
+    # Stickiness
+    stickiness = overview.get("stickiness", {})
+    stickiness_val = stickiness.get("value") if isinstance(stickiness, dict) else stickiness
+    if isinstance(stickiness_val, (int, float)):
+        stickiness_str = f"{stickiness_val:.0f}%"
+    elif stickiness_val is not None:
+        stickiness_str = str(stickiness_val)
+    else:
+        stickiness_str = "\u2014"
+    stickiness_change = stickiness.get("change_percent") if isinstance(stickiness, dict) else None
+
+    # Usage overview stats
+    chats_per_day = usage_overview.get("chats_per_day", {}).get("value", "\u2014")
+    projects_created = usage_overview.get("projects_created", {}).get("value", "\u2014")
+    artifacts_created = usage_overview.get("artifacts_created", {}).get("value", "\u2014")
+    chats_per_day_change = usage_overview.get("chats_per_day", {}).get("change_percent", None)
+    projects_created_change = usage_overview.get("projects_created", {}).get("change_percent", None)
+    artifacts_created_change = usage_overview.get("artifacts_created", {}).get("change_percent", None)
 
     # Premium members for seat tier subtitle
     premium_members = [m for m in members
@@ -720,7 +768,39 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             ("Pending Invites", str(pending_count), "Haven't accepted invite yet", LM_AMBER),
             ("Seat Tier", plan_tier, tier_subtitle, LM_RED),
         ]))
-        story.append(Spacer(1, 18))
+        story.append(Spacer(1, 10))
+
+        # --- Activity Metrics with Trends (expanded) ---
+        if "trends" in sections or "stickiness" in sections:
+            dau_sub = f"Daily active {_trend_text(dau_change)}" if "trends" in sections and dau_change is not None else "Daily active"
+            wau_sub = f"Weekly active {_trend_text(wau_change)}" if "trends" in sections and wau_change is not None else "Weekly active"
+            mau_sub = f"Monthly active {_trend_text(mau_change)}" if "trends" in sections and mau_change is not None else "Monthly active"
+            util_sub = f"Seat utilization {_trend_text(utilization_change)}" if "trends" in sections and utilization_change is not None else "Seat utilization"
+            cards = [
+                ("DAU", str(dau_val), dau_sub, LM_GREEN),
+                ("WAU", str(wau_val), wau_sub, "#2563eb"),
+                ("MAU", str(mau_val), mau_sub, "#2563eb"),
+                ("Utilization", utilization_str, util_sub, LM_AMBER),
+            ]
+            if "stickiness" in sections:
+                sticky_sub = f"DAU/MAU ratio {_trend_text(stickiness_change)}" if stickiness_change is not None else "DAU/MAU ratio"
+                cards.append(("Stickiness", stickiness_str, sticky_sub, "#8b5cf6"))
+            story.append(StatCardRow(cards))
+            story.append(Spacer(1, 10))
+
+        # --- Usage Summary Stats (expanded) ---
+        if "usage_stats" in sections:
+            cpd_sub = f"Avg per day {_trend_text(chats_per_day_change)}" if chats_per_day_change is not None else "Avg per day"
+            proj_sub = f"MTD {_trend_text(projects_created_change)}" if projects_created_change is not None else "MTD"
+            art_sub = f"MTD {_trend_text(artifacts_created_change)}" if artifacts_created_change is not None else "MTD"
+            story.append(StatCardRow([
+                ("Chats / Day", str(chats_per_day), cpd_sub, LM_RED),
+                ("Projects Created", str(projects_created), proj_sub, LM_RED),
+                ("Artifacts Created", str(artifacts_created), art_sub, LM_RED),
+            ]))
+            story.append(Spacer(1, 10))
+
+        story.append(Spacer(1, 8))
 
     # =======================================================================
     # ACTIVITY ANALYTICS — Featured Daily Chat Activity
@@ -828,6 +908,58 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             ]))
             story.append(wau_table)
         story.append(Spacer(1, 18))
+
+    # --- DAU Timeseries (expanded) ---
+    if "dau_chart" in sections:
+        dau_data = dau_chart_data.get("data", [])
+        dau_labels = dau_chart_data.get("labels", [])
+        if dau_data:
+            if len(dau_data) > 14:
+                dau_data = dau_data[-14:]
+                dau_labels = dau_labels[-14:]
+            story.append(SectionHeader(
+                "Daily Active Users \u00b7 Claude.ai/Analytics \u00b7 Last 30 Days"
+            ))
+            story.append(Spacer(1, 10))
+            fig_dau = _make_line_chart(
+                dau_labels, dau_data,
+                "Daily Active Users (DAU)",
+                color=LM_GREEN, color_rgb=(22 / 255, 163 / 255, 74 / 255),
+                show_labels=len(dau_data) <= 14,
+            )
+            dau_img = _fig_to_image(fig_dau, USABLE_WIDTH - 8, 2.2 * inch)
+            dau_table = Table([[dau_img]], colWidths=[USABLE_WIDTH])
+            dau_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(dau_table)
+            story.append(Spacer(1, 18))
+
+    # --- Top Users by Chats (expanded) ---
+    if "chat_rankings" in sections and top_chats:
+        fig_chats_rank = _make_hbar_chart(
+            [u["name"] for u in top_chats],
+            [u["count"] for u in top_chats],
+            "Top Users by Chats (MTD)"
+        )
+        chats_h = max(1.5, len(top_chats) * 0.35 + 0.8) * inch
+        chats_img = _fig_to_image(fig_chats_rank, USABLE_WIDTH - 8, chats_h)
+        chats_table = Table([[chats_img]], colWidths=[USABLE_WIDTH])
+        chats_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(chats_table)
+        story.append(Spacer(1, 14))
 
     # --- Top Users by Projects ---
     if "usage" in sections and top_projects:

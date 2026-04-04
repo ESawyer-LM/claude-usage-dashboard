@@ -395,6 +395,12 @@ def scrape() -> dict:
         wau_chart = _timeseries_to_chart(wau_points)
         logger.info(f"WAU timeseries: {len(wau_chart['data'])} data points")
 
+        # --- DAU timeseries (line chart) ---
+        logger.info("Fetching DAU timeseries...")
+        dau_points = _fetch_activity_timeseries(cookie, org_id, metric="dau", days=30)
+        dau_chart = _timeseries_to_chart(dau_points)
+        logger.info(f"DAU timeseries: {len(dau_chart['data'])} data points")
+
         # --- Top users by projects (MTD) ---
         logger.info("Fetching top users by projects...")
         project_rankings = _fetch_user_rankings(cookie, org_id, metric="projects", limit=10)
@@ -406,6 +412,12 @@ def scrape() -> dict:
         artifact_rankings = _fetch_user_rankings(cookie, org_id, metric="artifacts", limit=10)
         top_artifacts = _rankings_to_top_users(artifact_rankings, members)
         logger.info(f"Top users by artifacts: {len(top_artifacts)}")
+
+        # --- Top users by chats (MTD) ---
+        logger.info("Fetching top users by chats...")
+        chat_rankings = _fetch_user_rankings(cookie, org_id, metric="chats", limit=10)
+        top_chats = _rankings_to_top_users(chat_rankings, members)
+        logger.info(f"Top users by chats: {len(top_chats)}")
 
         # --- Claude Code overview (sessions, lines, cost, commits, PRs) ---
         logger.info("Fetching Claude Code metrics...")
@@ -467,8 +479,10 @@ def scrape() -> dict:
             "members": members,
             "daily_chats": daily_chats,
             "wau_chart": wau_chart,
+            "dau_chart": dau_chart,
             "top_users_projects": top_projects,
             "top_users_artifacts": top_artifacts,
+            "top_users_chats": top_chats,
             "activity_overview": activity_overview,
             "usage_overview": usage_overview,
             "claude_code": {
