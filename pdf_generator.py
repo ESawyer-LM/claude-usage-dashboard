@@ -24,6 +24,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     Flowable,
     Image,
+    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -862,11 +863,6 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
         # ===================================================================
         # WEEKLY ACTIVE USERS
         # ===================================================================
-        story.append(SectionHeader(
-            "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window"
-        ))
-        story.append(Spacer(1, 10))
-
         wau_data = wau_chart.get("data", [])
         wau_labels = wau_chart.get("labels", [])
         # Limit WAU to last 7 data points (matching daily chat timeframe)
@@ -906,7 +902,13 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
-            story.append(wau_table)
+            story.append(KeepTogether([
+                SectionHeader(
+                    "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window"
+                ),
+                Spacer(1, 10),
+                wau_table,
+            ]))
         story.append(Spacer(1, 18))
 
     # --- DAU Timeseries (expanded) ---
@@ -917,10 +919,6 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             if len(dau_data) > 14:
                 dau_data = dau_data[-14:]
                 dau_labels = dau_labels[-14:]
-            story.append(SectionHeader(
-                "Daily Active Users \u00b7 Claude.ai/Analytics \u00b7 Last 30 Days"
-            ))
-            story.append(Spacer(1, 10))
             fig_dau = _make_line_chart(
                 dau_labels, dau_data,
                 "Daily Active Users (DAU)",
@@ -937,7 +935,13 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
-            story.append(dau_table)
+            story.append(KeepTogether([
+                SectionHeader(
+                    "Daily Active Users \u00b7 Claude.ai/Analytics \u00b7 Last 30 Days"
+                ),
+                Spacer(1, 10),
+                dau_table,
+            ]))
             story.append(Spacer(1, 18))
 
     # --- Top Users by Chats (expanded) ---
@@ -1014,19 +1018,19 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
         cc_prs = cc_summary.get("pull_requests_created", 0)
 
         user_label = "Active User" if cc_active == 1 else "Active Users"
-        story.append(SectionHeader(
-            f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} {user_label}",
-            color=CC_PURPLE,
-        ))
-        story.append(Spacer(1, 10))
-
-        # 5 stat cards
-        story.append(StatCardRow([
-            ("Active Users", str(cc_active), f"{month_str} MTD", CC_PURPLE),
-            ("Sessions", str(cc_sessions), f"{month_str} MTD", CC_PURPLE),
-            ("Lines Accepted", f"{cc_lines:,}", f"{month_str} MTD", LM_GREEN),
-            ("Commits", str(cc_commits), f"{month_str} MTD", "#2563eb"),
-            ("Pull Requests", str(cc_prs), f"{month_str} MTD", "#2563eb"),
+        story.append(KeepTogether([
+            SectionHeader(
+                f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} {user_label}",
+                color=CC_PURPLE,
+            ),
+            Spacer(1, 10),
+            StatCardRow([
+                ("Active Users", str(cc_active), f"{month_str} MTD", CC_PURPLE),
+                ("Sessions", str(cc_sessions), f"{month_str} MTD", CC_PURPLE),
+                ("Lines Accepted", f"{cc_lines:,}", f"{month_str} MTD", LM_GREEN),
+                ("Commits", str(cc_commits), f"{month_str} MTD", "#2563eb"),
+                ("Pull Requests", str(cc_prs), f"{month_str} MTD", "#2563eb"),
+            ]),
         ]))
         story.append(Spacer(1, 14))
 
@@ -1110,25 +1114,32 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
 
         # Claude Code user breakdown table
         if cc_users:
-            story.append(SectionHeader("Claude Code User Breakdown", color=CC_PURPLE))
-            story.append(Spacer(1, 10))
             cc_table = _build_cc_user_table(cc_users)
-            story.append(cc_table)
+            story.append(KeepTogether([
+                SectionHeader("Claude Code User Breakdown", color=CC_PURPLE),
+                Spacer(1, 10),
+                cc_table,
+            ]))
             story.append(Spacer(1, 18))
 
     # =======================================================================
     # ALL MEMBERS
     # =======================================================================
     if "members" in sections:
-        story.append(SectionHeader("All Members"))
-        story.append(Spacer(1, 10))
-
         if members:
             member_table = _build_member_table(members, top_projects, top_artifacts)
-            story.append(member_table)
+            story.append(KeepTogether([
+                SectionHeader("All Members"),
+                Spacer(1, 10),
+                member_table,
+            ]))
         else:
             no_data = ParagraphStyle("nodata", parent=styles["Normal"], fontSize=10, textColor=colors.gray)
-            story.append(Paragraph("No member data available.", no_data))
+            story.append(KeepTogether([
+                SectionHeader("All Members"),
+                Spacer(1, 10),
+                Paragraph("No member data available.", no_data),
+            ]))
 
     # Build PDF with page background and numbered footer
     NumberedCanvas = _make_numbered_canvas_factory(today_str)
