@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.3.8"
+VERSION = "0.4.0"
 
 import json
 import logging
@@ -13,6 +13,8 @@ import stat
 import subprocess
 import tempfile
 import urllib.request
+import uuid
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -52,18 +54,60 @@ DEFAULT_SETTINGS = {
     "smtp_user": "esawyer@loumalnatis.com",
     "smtp_pass": "",  # stored Fernet-encrypted
     "smtp_from_name": "Claude Dashboard",
-    "weekday_recipients": ["esawyer@loumalnatis.com", "nscott@loumalnatis.com"],
-    "friday_recipients": [
-        "esawyer@loumalnatis.com",
-        "nscott@loumalnatis.com",
-        "jdouglas@loumalnatis.com",
-    ],
-    "weekday_cron": {"hour": 7, "minute": 0},
-    "friday_cron": {"hour": 7, "minute": 0},
-    "weekday_enabled": True,
-    "friday_enabled": True,
+    "schedules": [],
     "timezone": "America/Chicago",
 }
+
+
+def _migrate_schedules(settings: dict) -> dict:
+    """Migrate old weekday/friday schedule format to new multi-schedule list.
+
+    Detects the legacy format (weekday_cron/friday_cron keys without a
+    schedules list) and converts to the new schedules array.  Removes the
+    old keys after migration.  Returns the settings dict (mutated in place).
+    """
+    if "schedules" in settings:
+        return settings  # already migrated
+
+    now = datetime.now().isoformat()
+    schedules = []
+
+    # Convert weekday schedule (Mon-Thu)
+    wd_cron = settings.get("weekday_cron", {"hour": 7, "minute": 0})
+    schedules.append({
+        "id": uuid.uuid4().hex[:8],
+        "name": "Weekday Report (Mon-Thu)",
+        "enabled": settings.get("weekday_enabled", True),
+        "recurrence_type": "weekly",
+        "days_of_week": ["mon", "tue", "wed", "thu"],
+        "time": {"hour": wd_cron.get("hour", 7), "minute": wd_cron.get("minute", 0)},
+        "recipients": settings.get("weekday_recipients", []),
+        "created_at": now,
+        "last_sent": None,
+    })
+
+    # Convert Friday schedule
+    fri_cron = settings.get("friday_cron", {"hour": 7, "minute": 0})
+    schedules.append({
+        "id": uuid.uuid4().hex[:8],
+        "name": "Friday Report",
+        "enabled": settings.get("friday_enabled", True),
+        "recurrence_type": "weekly",
+        "days_of_week": ["fri"],
+        "time": {"hour": fri_cron.get("hour", 7), "minute": fri_cron.get("minute", 0)},
+        "recipients": settings.get("friday_recipients", []),
+        "created_at": now,
+        "last_sent": None,
+    })
+
+    settings["schedules"] = schedules
+
+    # Remove legacy keys
+    for key in ("weekday_cron", "friday_cron", "weekday_recipients",
+                "friday_recipients", "weekday_enabled", "friday_enabled"):
+        settings.pop(key, None)
+
+    return settings
 
 # ---------------------------------------------------------------------------
 # Fernet encryption helpers
@@ -164,7 +208,11 @@ def _ensure_output_dir():
 
 
 def load_settings() -> dict:
-    """Read settings.json, creating it with defaults if missing."""
+    """Read settings.json, creating it with defaults if missing.
+
+    Automatically migrates legacy weekday/friday format to the new
+    multi-schedule format on first load.
+    """
     _ensure_output_dir()
     if not os.path.exists(SETTINGS_FILE):
         save_settings(DEFAULT_SETTINGS)
@@ -174,7 +222,12 @@ def load_settings() -> dict:
     # Merge any missing defaults (for forward compatibility)
     merged = dict(DEFAULT_SETTINGS)
     merged.update(data)
-    return merged
+    # Migrate legacy schedule format if needed
+    migrated = _migrate_schedules(merged)
+    if "schedules" not in data:
+        # Persist migration
+        save_settings(migrated)
+    return migrated
 
 
 def save_settings(data: dict):

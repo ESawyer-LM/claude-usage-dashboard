@@ -2,6 +2,28 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.4.0] - 2026-04-04
+
+### Added
+- Multi-schedule email system: create unlimited named schedule sets, each with its own recurrence, time, and recipient list
+- Recurrence options: Weekdays (Mon-Fri), Every Day, Weekly (pick specific days), Biweekly, Monthly (day 1-28 or last)
+- Per-schedule enable/disable toggle, Send Now, and Delete with confirmation
+- Per-schedule last_sent and next_run timestamps displayed in the admin UI
+- "Add Schedule" form in Card 4 for creating new schedule sets on the fly
+- Automatic migration from legacy weekday/friday format to new multi-schedule format
+- CLI `--schedule <id>` flag for one-shot mode targeting a specific schedule's recipients
+
+### Changed
+- Card 4 "Schedule & Recipients" redesigned as "Email Schedules" with dynamic sub-cards
+- `/api/save-schedule` and `/api/send-now` replaced with per-schedule CRUD routes (`/api/schedules`, `/api/schedules/<id>`, etc.)
+- `scheduler.py` rewritten: `run_report_job(schedule_id)` replaces `run_report_job(is_friday)`, `sync_jobs()` manages N dynamic APScheduler jobs
+- `main.py` startup banner now lists all active schedules with recurrence details
+- CLI `--friday` flag replaced with `--schedule <id>`; `--now` without `--schedule` runs all enabled schedules
+
+### Removed
+- Hardcoded weekday/friday dual-schedule system
+- Legacy settings keys: `weekday_cron`, `friday_cron`, `weekday_recipients`, `friday_recipients`, `weekday_enabled`, `friday_enabled`
+
 ## [0.3.8] - 2026-04-03
 
 ### Added
