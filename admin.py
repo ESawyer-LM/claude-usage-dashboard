@@ -111,6 +111,15 @@ def create_app(scheduler_ref=None):
         test_result = request.args.get("test")
         test_msg = request.args.get("msg", "")
 
+        # Build per-schedule next run times
+        next_runs = sched_module.get_next_run_times()
+        schedules_display = []
+        for s in settings.get("schedules", []):
+            s_copy = dict(s)
+            s_copy["next_run"] = _format_time(next_runs.get(s["id"]), tz_str)
+            s_copy["last_sent_fmt"] = _format_time(s.get("last_sent"), tz_str) if s.get("last_sent") else "Never"
+            schedules_display.append(s_copy)
+
         return render_template_string(
             DASHBOARD_TEMPLATE,
             settings=settings,
@@ -119,8 +128,7 @@ def create_app(scheduler_ref=None):
             last_run=last_run,
             last_status=last_status,
             last_email_sent=last_email_sent,
-            next_weekday=_format_time(next_runs.get("weekday", "N/A"), tz_str),
-            next_friday=_format_time(next_runs.get("friday", "N/A"), tz_str),
+            schedules=schedules_display,
             test_result=test_result,
             test_msg=test_msg,
             smtp_pass_set=bool(settings.get("smtp_pass", "")),
@@ -198,70 +206,194 @@ def create_app(scheduler_ref=None):
         ok, msg = emailer.test_smtp_connection()
         return jsonify({"ok": ok, "message": msg})
 
-    @app.route("/api/save-schedule", methods=["POST"])
-    @login_required
-    def api_save_schedule():
-        settings = config.load_settings()
+    # ----- Schedule CRUD API -----
 
-        # Parse schedule
+    _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    _valid_recurrences = {"weekdays", "every_day", "weekly", "biweekly", "monthly"}
+    _valid_days = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+    def _parse_schedule_form(form) -> tuple[dict | None, str | None]:
+        """Parse and validate schedule form data.  Returns (data, error)."""
+        import uuid as _uuid
+
+        name = form.get("name", "").strip()
+        if not name:
+            return None, "Schedule name is required"
+
+        recurrence_type = form.get("recurrence_type", "weekly")
+        if recurrence_type not in _valid_recurrences:
+            return None, f"Invalid recurrence type: {recurrence_type}"
+
         try:
-            wd_hour = int(request.form.get("weekday_hour", 7))
-            wd_minute = int(request.form.get("weekday_minute", 0))
-            fri_hour = int(request.form.get("friday_hour", 7))
-            fri_minute = int(request.form.get("friday_minute", 0))
-        except ValueError:
-            return jsonify({"ok": False, "error": "Invalid time values"}), 400
+            hour = int(form.get("hour", 7))
+            minute = int(form.get("minute", 0))
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError
+        except (ValueError, TypeError):
+            return None, "Invalid time values"
 
-        timezone = request.form.get("timezone", "America/Chicago").strip()
+        # Days of week (for weekly / biweekly)
+        days_of_week = []
+        if recurrence_type in ("weekly", "biweekly"):
+            days_raw = form.getlist("days_of_week")
+            days_of_week = [d for d in days_raw if d in _valid_days]
+            if not days_of_week:
+                return None, "Select at least one day of the week"
 
-        # Parse recipients
-        weekday_raw = request.form.get("weekday_recipients", "").strip()
-        friday_raw = request.form.get("friday_recipients", "").strip()
+        # Month day (for monthly)
+        month_day = 1
+        if recurrence_type == "monthly":
+            md = form.get("month_day", "1")
+            if md == "last":
+                month_day = "last"
+            else:
+                try:
+                    month_day = int(md)
+                    if not (1 <= month_day <= 28):
+                        return None, "Day of month must be 1-28 or 'last'"
+                except (ValueError, TypeError):
+                    return None, "Invalid day of month"
 
-        email_pattern = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+        # Recipients
+        raw = form.get("recipients", "").strip()
+        recipients = [e.strip() for e in raw.split("\n") if e.strip()]
+        for email in recipients:
+            if not _email_re.match(email):
+                return None, f"Invalid email: {email}"
 
-        weekday_recipients = [e.strip() for e in weekday_raw.split("\n") if e.strip()]
-        friday_recipients = [e.strip() for e in friday_raw.split("\n") if e.strip()]
+        data = {
+            "name": name,
+            "recurrence_type": recurrence_type,
+            "days_of_week": days_of_week,
+            "month_day": month_day,
+            "time": {"hour": hour, "minute": minute},
+            "recipients": recipients,
+        }
+        return data, None
 
-        for email in weekday_recipients + friday_recipients:
-            if not email_pattern.match(email):
-                return jsonify({"ok": False, "error": f"Invalid email: {email}"}), 400
+    @app.route("/api/schedules", methods=["POST"])
+    @login_required
+    def api_create_schedule():
+        import uuid as _uuid
+        from datetime import datetime as _dt
 
-        settings["weekday_cron"] = {"hour": wd_hour, "minute": wd_minute}
-        settings["friday_cron"] = {"hour": fri_hour, "minute": fri_minute}
-        settings["weekday_enabled"] = request.form.get("weekday_enabled") == "on"
-        settings["friday_enabled"] = request.form.get("friday_enabled") == "on"
-        settings["timezone"] = timezone
-        settings["weekday_recipients"] = weekday_recipients
-        settings["friday_recipients"] = friday_recipients
+        data, err = _parse_schedule_form(request.form)
+        if err:
+            return jsonify({"ok": False, "error": err}), 400
+
+        settings = config.load_settings()
+        schedule = {
+            "id": _uuid.uuid4().hex[:8],
+            "enabled": True,
+            "created_at": _dt.now().isoformat(),
+            "last_sent": None,
+            **data,
+        }
+        settings.setdefault("schedules", []).append(schedule)
+        config.save_settings(settings)
+
+        try:
+            sched_module.sync_jobs(settings)
+        except Exception as e:
+            logger.warning(f"Failed to sync jobs after create: {e}")
+
+        logger.info(f"Schedule '{schedule['name']}' created (id={schedule['id']})")
+        return jsonify({"ok": True, "message": f"Schedule '{schedule['name']}' created", "id": schedule["id"]})
+
+    @app.route("/api/schedules/<schedule_id>", methods=["POST"])
+    @login_required
+    def api_update_schedule(schedule_id):
+        data, err = _parse_schedule_form(request.form)
+        if err:
+            return jsonify({"ok": False, "error": err}), 400
+
+        settings = config.load_settings()
+        found = False
+        for s in settings.get("schedules", []):
+            if s["id"] == schedule_id:
+                s.update(data)
+                found = True
+                break
+
+        if not found:
+            return jsonify({"ok": False, "error": "Schedule not found"}), 404
 
         config.save_settings(settings)
 
-        # Reschedule APScheduler jobs
         try:
-            sched_module.reschedule(settings)
+            sched_module.sync_jobs(settings)
         except Exception as e:
-            logger.warning(f"Failed to reschedule: {e}")
+            logger.warning(f"Failed to sync jobs after update: {e}")
 
-        logger.info("Schedule and recipients updated via admin UI")
-        return jsonify({"ok": True, "message": "Schedule and recipients saved"})
+        logger.info(f"Schedule '{data['name']}' updated (id={schedule_id})")
+        return jsonify({"ok": True, "message": f"Schedule '{data['name']}' saved"})
 
-    @app.route("/api/send-now", methods=["POST"])
+    @app.route("/api/schedules/<schedule_id>/toggle", methods=["POST"])
     @login_required
-    def api_send_now():
-        is_friday = request.form.get("is_friday") == "true"
-        label = "Friday" if is_friday else "Weekday"
+    def api_toggle_schedule(schedule_id):
+        settings = config.load_settings()
+        for s in settings.get("schedules", []):
+            if s["id"] == schedule_id:
+                s["enabled"] = not s.get("enabled", True)
+                config.save_settings(settings)
+                try:
+                    sched_module.sync_jobs(settings)
+                except Exception as e:
+                    logger.warning(f"Failed to sync jobs after toggle: {e}")
+                state = "enabled" if s["enabled"] else "disabled"
+                logger.info(f"Schedule '{s['name']}' {state}")
+                return jsonify({"ok": True, "enabled": s["enabled"], "message": f"Schedule {state}"})
+        return jsonify({"ok": False, "error": "Schedule not found"}), 404
+
+    @app.route("/api/schedules/<schedule_id>/delete", methods=["POST"])
+    @login_required
+    def api_delete_schedule(schedule_id):
+        settings = config.load_settings()
+        schedules = settings.get("schedules", [])
+        name = None
+        for i, s in enumerate(schedules):
+            if s["id"] == schedule_id:
+                name = s.get("name", schedule_id)
+                schedules.pop(i)
+                break
+        if name is None:
+            return jsonify({"ok": False, "error": "Schedule not found"}), 404
+
+        settings["schedules"] = schedules
+        config.save_settings(settings)
+
+        try:
+            sched_module.sync_jobs(settings)
+        except Exception as e:
+            logger.warning(f"Failed to sync jobs after delete: {e}")
+
+        logger.info(f"Schedule '{name}' deleted (id={schedule_id})")
+        return jsonify({"ok": True, "message": f"Schedule '{name}' deleted"})
+
+    @app.route("/api/schedules/<schedule_id>/send-now", methods=["POST"])
+    @login_required
+    def api_send_now_schedule(schedule_id):
+        settings = config.load_settings()
+        schedule = None
+        for s in settings.get("schedules", []):
+            if s["id"] == schedule_id:
+                schedule = s
+                break
+        if schedule is None:
+            return jsonify({"ok": False, "error": "Schedule not found"}), 404
+
+        name = schedule.get("name", schedule_id)
 
         def _run():
             try:
-                sched_module.run_report_job(is_friday=is_friday)
-                logger.info(f"{label} report sent via Send Now")
+                sched_module.run_report_job(schedule_id=schedule_id)
+                logger.info(f"Report sent via Send Now for schedule '{name}'")
             except Exception as e:
-                logger.error(f"Send Now ({label}) failed: {e}")
+                logger.error(f"Send Now for schedule '{name}' failed: {e}")
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
-        return jsonify({"ok": True, "message": f"{label} report queued — sending to configured recipients"})
+        return jsonify({"ok": True, "message": f"Report queued for '{name}'"})
 
     @app.route("/api/reschedule", methods=["POST"])
     @login_required
@@ -269,10 +401,6 @@ def create_app(scheduler_ref=None):
         try:
             data = request.get_json()
             settings = config.load_settings()
-            if "weekday_cron" in data:
-                settings["weekday_cron"] = data["weekday_cron"]
-            if "friday_cron" in data:
-                settings["friday_cron"] = data["friday_cron"]
             if "timezone" in data:
                 tz_val = data["timezone"].strip()
                 try:
@@ -281,7 +409,7 @@ def create_app(scheduler_ref=None):
                     return jsonify({"ok": False, "error": f"Invalid timezone: {tz_val}"}), 400
                 settings["timezone"] = tz_val
             config.save_settings(settings)
-            sched_module.reschedule(settings)
+            sched_module.sync_jobs(settings)
             return jsonify({"ok": True})
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)}), 500
@@ -315,12 +443,23 @@ def create_app(scheduler_ref=None):
         settings = config.load_settings()
         tz_str = settings.get("timezone", "America/Chicago")
         next_runs = sched_module.get_next_run_times()
+
+        # Build per-schedule status
+        schedule_status = []
+        for s in settings.get("schedules", []):
+            schedule_status.append({
+                "id": s["id"],
+                "name": s.get("name", ""),
+                "enabled": s.get("enabled", True),
+                "next_run": _format_time(next_runs.get(s["id"]), tz_str),
+                "last_sent": _format_time(s.get("last_sent"), tz_str) if s.get("last_sent") else "Never",
+            })
+
         return jsonify({
             "last_run": _format_time(settings.get("last_run", "Never"), tz_str),
             "last_status": settings.get("last_status", "N/A"),
             "last_email_sent": _format_time(settings.get("last_email_sent", "Never"), tz_str),
-            "next_weekday": _format_time(next_runs.get("weekday"), tz_str),
-            "next_friday": _format_time(next_runs.get("friday"), tz_str),
+            "schedules": schedule_status,
             "cookie_set": bool(settings.get("session_cookie")),
             "smtp_configured": bool(settings.get("smtp_pass")),
             "timezone": tz_str,
@@ -543,12 +682,12 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div class="status-value" id="lastEmail">{{ last_email_sent }}</div>
         </div>
         <div class="status-item">
-            <div class="status-label">Next Weekday Run</div>
-            <div class="status-value" id="nextWeekday">{{ next_weekday }}</div>
+            <div class="status-label">Active Schedules</div>
+            <div class="status-value">{{ schedules|selectattr('enabled')|list|length }} of {{ schedules|length }}</div>
         </div>
         <div class="status-item">
-            <div class="status-label">Next Friday Run</div>
-            <div class="status-value" id="nextFriday">{{ next_friday }}</div>
+            <div class="status-label">Next Scheduled Run</div>
+            <div class="status-value" id="nextRun">{% set enabled = schedules|selectattr('enabled')|selectattr('next_run', 'ne', 'N/A')|selectattr('next_run', 'ne', None)|list %}{% if enabled %}{{ enabled|sort(attribute='next_run')|first|attr('next_run') }}{% else %}N/A{% endif %}</div>
         </div>
         <div class="status-item">
             <div class="status-label">Last Status</div>
@@ -670,78 +809,172 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Card 4: Schedule & Recipients -->
+<!-- Card 4: Email Schedules -->
 <div class="card" id="card-schedule">
-    <h2 class="card-header" onclick="toggleCard('card-schedule')">Schedule &amp; Recipients</h2>
+    <h2 class="card-header" onclick="toggleCard('card-schedule')">Email Schedules</h2>
     <div class="card-body">
-    <form id="scheduleForm">
-        <input type="hidden" name="timezone" id="scheduleTimezoneHidden" value="{{ settings.timezone }}">
-        <div class="inline-row">
-            <div class="form-group">
-                <label style="display:flex;align-items:center;gap:8px;">
-                    <span>Weekday Send (Mon-Thu)</span>
-                    <label class="toggle" style="margin-left:auto;">
-                        <input type="checkbox" name="weekday_enabled" {{ 'checked' if settings.get('weekday_enabled', true) }}>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </label>
-                <div style="display:flex;gap:8px;">
-                    <select name="weekday_hour">
-                        {% for h in range(24) %}
-                        <option value="{{ h }}" {{ 'selected' if h == settings.weekday_cron.hour }}>{{ '%02d'|format(h) }}</option>
-                        {% endfor %}
-                    </select>
-                    <span style="line-height:36px;">:</span>
-                    <select name="weekday_minute">
-                        {% for m in [0, 15, 30, 45] %}
-                        <option value="{{ m }}" {{ 'selected' if m == settings.weekday_cron.minute }}>{{ '%02d'|format(m) }}</option>
-                        {% endfor %}
+
+    {% for s in schedules %}
+    <div class="schedule-card" id="sched-{{ s.id }}" style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:14px;{% if not s.enabled %}opacity:0.6;{% endif %}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <strong style="font-size:15px;" class="sched-name">{{ s.name }}</strong>
+                <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:{% if s.enabled %}#dcfce7;color:#15803d{% else %}#f3f4f6;color:#6b7280{% endif %};">{{ 'Active' if s.enabled else 'Paused' }}</span>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" {{ 'checked' if s.enabled }} onchange="toggleSchedule('{{ s.id }}')">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <form class="schedule-form" data-id="{{ s.id }}" data-mode="edit">
+            <div class="inline-row">
+                <div class="form-group" style="flex:2;">
+                    <label>Name</label>
+                    <input type="text" name="name" value="{{ s.name }}" required>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Recurrence</label>
+                    <select name="recurrence_type" onchange="toggleRecurrenceFields(this)">
+                        <option value="weekdays" {{ 'selected' if s.recurrence_type == 'weekdays' }}>Weekdays (Mon-Fri)</option>
+                        <option value="every_day" {{ 'selected' if s.recurrence_type == 'every_day' }}>Every Day</option>
+                        <option value="weekly" {{ 'selected' if s.recurrence_type == 'weekly' }}>Weekly</option>
+                        <option value="biweekly" {{ 'selected' if s.recurrence_type == 'biweekly' }}>Biweekly</option>
+                        <option value="monthly" {{ 'selected' if s.recurrence_type == 'monthly' }}>Monthly</option>
                     </select>
                 </div>
             </div>
-            <div class="form-group">
-                <label style="display:flex;align-items:center;gap:8px;">
-                    <span>Friday Send</span>
-                    <label class="toggle" style="margin-left:auto;">
-                        <input type="checkbox" name="friday_enabled" {{ 'checked' if settings.get('friday_enabled', true) }}>
-                        <span class="toggle-slider"></span>
+            <div class="days-row" style="margin-bottom:10px;{% if s.recurrence_type not in ('weekly', 'biweekly') %}display:none;{% endif %}">
+                <label style="font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;display:block;">Days</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    {% for d, dl in [('mon','Mon'),('tue','Tue'),('wed','Wed'),('thu','Thu'),('fri','Fri'),('sat','Sat'),('sun','Sun')] %}
+                    <label style="font-size:13px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;{% if d in s.get('days_of_week', []) %}background:#C8102E;color:white;border-color:#C8102E;{% endif %}" class="day-chip">
+                        <input type="checkbox" name="days_of_week" value="{{ d }}" {{ 'checked' if d in s.get('days_of_week', []) }} style="display:none;" onchange="this.parentElement.style.background=this.checked?'#C8102E':'';this.parentElement.style.color=this.checked?'white':'';this.parentElement.style.borderColor=this.checked?'#C8102E':'#d1d5db';">
+                        {{ dl }}
                     </label>
-                </label>
-                <div style="display:flex;gap:8px;">
-                    <select name="friday_hour">
-                        {% for h in range(24) %}
-                        <option value="{{ h }}" {{ 'selected' if h == settings.friday_cron.hour }}>{{ '%02d'|format(h) }}</option>
-                        {% endfor %}
-                    </select>
-                    <span style="line-height:36px;">:</span>
-                    <select name="friday_minute">
-                        {% for m in [0, 15, 30, 45] %}
-                        <option value="{{ m }}" {{ 'selected' if m == settings.friday_cron.minute }}>{{ '%02d'|format(m) }}</option>
-                        {% endfor %}
-                    </select>
+                    {% endfor %}
                 </div>
             </div>
-        </div>
-        <div class="inline-row">
-            <div class="form-group">
-                <label>Weekday Recipients (one per line)</label>
-                <textarea name="weekday_recipients" rows="3">{{ settings.weekday_recipients | join('\\n') }}</textarea>
+            <div class="month-row" style="margin-bottom:10px;{% if s.recurrence_type != 'monthly' %}display:none;{% endif %}">
+                <label style="font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;display:block;">Day of Month</label>
+                <select name="month_day" style="width:120px;">
+                    {% for d in range(1, 29) %}
+                    <option value="{{ d }}" {{ 'selected' if s.get('month_day') == d }}>{{ d }}</option>
+                    {% endfor %}
+                    <option value="last" {{ 'selected' if s.get('month_day') == 'last' }}>Last day</option>
+                </select>
             </div>
-            <div class="form-group">
-                <label>Friday Recipients (one per line)</label>
-                <textarea name="friday_recipients" rows="3">{{ settings.friday_recipients | join('\\n') }}</textarea>
+            <div class="inline-row">
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>Time</label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <select name="hour" style="width:70px;">
+                            {% for h in range(24) %}
+                            <option value="{{ h }}" {{ 'selected' if h == s.time.hour }}>{{ '%02d'|format(h) }}</option>
+                            {% endfor %}
+                        </select>
+                        <span>:</span>
+                        <select name="minute" style="width:70px;">
+                            {% for m in [0, 15, 30, 45] %}
+                            <option value="{{ m }}" {{ 'selected' if m == s.time.minute }}>{{ '%02d'|format(m) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Recipients (one per line)</label>
+                    <textarea name="recipients" rows="3">{{ s.recipients | join('\n') }}</textarea>
+                </div>
             </div>
-        </div>
-        <button type="submit" class="btn btn-red">Save Schedule &amp; Recipients</button>
-        <span id="scheduleResult" style="margin-left:12px;font-size:13px;"></span>
-    </form>
-    <hr style="border:none;border-top:1px solid #f3f4f6;margin:20px 0;">
-    <div style="display:flex;gap:12px;align-items:center;">
-        <span style="font-size:13px;color:#6b7280;">Send now:</span>
-        <button type="button" class="btn btn-red" id="sendWeekdayBtn">Weekday Report</button>
-        <button type="button" class="btn btn-red" id="sendFridayBtn">Friday Report</button>
-        <span id="sendNowResult" style="font-size:13px;"></span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button type="submit" class="btn btn-red" style="padding:6px 16px;font-size:13px;">Save</button>
+                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;" onclick="sendNowSchedule('{{ s.id }}')">Send Now</button>
+                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;color:#991b1b;" onclick="deleteSchedule('{{ s.id }}', '{{ s.name | e }}')">Delete</button>
+                <span class="sched-result" style="font-size:13px;"></span>
+                <span style="font-size:11px;color:#9ca3af;margin-left:auto;">Next: {{ s.next_run or 'N/A' }} &middot; Last: {{ s.last_sent_fmt }}</span>
+            </div>
+        </form>
     </div>
+    {% endfor %}
+
+    {% if not schedules %}
+    <div style="text-align:center;padding:20px;color:#6b7280;font-size:14px;" id="noSchedulesMsg">
+        No schedules configured. Click "Add Schedule" to create one.
+    </div>
+    {% endif %}
+
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:16px 0;">
+
+    <!-- Add new schedule (collapsible) -->
+    <div id="newScheduleWrapper" style="display:none;border:2px dashed #d1d5db;border-radius:10px;padding:16px;margin-bottom:12px;">
+        <strong style="font-size:14px;display:block;margin-bottom:10px;">New Schedule</strong>
+        <form id="newScheduleForm" data-mode="create">
+            <div class="inline-row">
+                <div class="form-group" style="flex:2;">
+                    <label>Name</label>
+                    <input type="text" name="name" placeholder="e.g. Weekly Leadership Report" required>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Recurrence</label>
+                    <select name="recurrence_type" onchange="toggleRecurrenceFields(this)">
+                        <option value="weekdays">Weekdays (Mon-Fri)</option>
+                        <option value="every_day">Every Day</option>
+                        <option value="weekly" selected>Weekly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="days-row" style="margin-bottom:10px;">
+                <label style="font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;display:block;">Days</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    {% for d, dl in [('mon','Mon'),('tue','Tue'),('wed','Wed'),('thu','Thu'),('fri','Fri'),('sat','Sat'),('sun','Sun')] %}
+                    <label style="font-size:13px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;" class="day-chip">
+                        <input type="checkbox" name="days_of_week" value="{{ d }}" style="display:none;" onchange="this.parentElement.style.background=this.checked?'#C8102E':'';this.parentElement.style.color=this.checked?'white':'';this.parentElement.style.borderColor=this.checked?'#C8102E':'#d1d5db';">
+                        {{ dl }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="month-row" style="margin-bottom:10px;display:none;">
+                <label style="font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;display:block;">Day of Month</label>
+                <select name="month_day" style="width:120px;">
+                    {% for d in range(1, 29) %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                    <option value="last">Last day</option>
+                </select>
+            </div>
+            <div class="inline-row">
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>Time</label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <select name="hour" style="width:70px;">
+                            {% for h in range(24) %}
+                            <option value="{{ h }}" {{ 'selected' if h == 7 }}>{{ '%02d'|format(h) }}</option>
+                            {% endfor %}
+                        </select>
+                        <span>:</span>
+                        <select name="minute" style="width:70px;">
+                            {% for m in [0, 15, 30, 45] %}
+                            <option value="{{ m }}">{{ '%02d'|format(m) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Recipients (one per line)</label>
+                    <textarea name="recipients" rows="3" placeholder="user@example.com"></textarea>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button type="submit" class="btn btn-red" style="padding:6px 16px;font-size:13px;">Create Schedule</button>
+                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;" onclick="document.getElementById('newScheduleWrapper').style.display='none';">Cancel</button>
+                <span id="newSchedResult" style="font-size:13px;"></span>
+            </div>
+        </form>
+    </div>
+    <button type="button" class="btn btn-red" onclick="document.getElementById('newScheduleWrapper').style.display='block';this.style.display='none';" id="addScheduleBtn">+ Add Schedule</button>
+
     </div>
 </div>
 
@@ -795,7 +1028,6 @@ function saveTimezone() {
     .then(function(d) {
         if (d.ok) {
             result.innerHTML = '<span style="color:#16a34a;">&#10003; Saved</span>';
-            document.getElementById('scheduleTimezoneHidden').value = tz;
         } else {
             result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
         }
@@ -826,12 +1058,6 @@ formFetch('cookieForm', '/api/save-cookie', 'cookieResult');
 formFetch('smtpForm', '/api/save-smtp', 'smtpResult');
 formFetch('testForm', '/api/send-test', 'testResult');
 
-// Sync hidden timezone before schedule form submit
-document.getElementById('scheduleForm').addEventListener('submit', function() {
-    document.getElementById('scheduleTimezoneHidden').value = document.getElementById('timezoneInput').value.trim();
-});
-formFetch('scheduleForm', '/api/save-schedule', 'scheduleResult');
-
 // Test SMTP button
 document.getElementById('testSmtpBtn').addEventListener('click', function() {
     const result = document.getElementById('smtpResult');
@@ -848,14 +1074,69 @@ document.getElementById('testSmtpBtn').addEventListener('click', function() {
         .catch(e => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
 });
 
-// Send Now buttons
-function sendNow(isFriday) {
-    const result = document.getElementById('sendNowResult');
-    const label = isFriday ? 'Friday' : 'Weekday';
-    result.innerHTML = '<span style="color:#6b7280;">Sending ' + label + ' report...</span>';
-    const fd = new FormData();
-    fd.append('is_friday', isFriday);
-    fetch('/api/send-now', { method: 'POST', body: fd })
+// --- Schedule management ---
+
+function toggleRecurrenceFields(sel) {
+    var form = sel.closest('form');
+    var daysRow = form.querySelector('.days-row');
+    var monthRow = form.querySelector('.month-row');
+    var val = sel.value;
+    daysRow.style.display = (val === 'weekly' || val === 'biweekly') ? '' : 'none';
+    monthRow.style.display = (val === 'monthly') ? '' : 'none';
+}
+
+function scheduleApiCall(url, fd, resultEl) {
+    resultEl.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
+    fetch(url, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                resultEl.innerHTML = '<span style="color:#16a34a;">&#10003; ' + (d.message || 'Done') + '</span>';
+                setTimeout(() => location.reload(), 800);
+            } else {
+                resultEl.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+            }
+        })
+        .catch(() => { resultEl.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+}
+
+// Handle save for existing schedule forms
+document.querySelectorAll('form.schedule-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var id = this.dataset.id;
+        var result = this.querySelector('.sched-result');
+        scheduleApiCall('/api/schedules/' + id, new FormData(this), result);
+    });
+});
+
+// Handle create new schedule form
+document.getElementById('newScheduleForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var result = document.getElementById('newSchedResult');
+    scheduleApiCall('/api/schedules', new FormData(this), result);
+});
+
+function toggleSchedule(id) {
+    fetch('/api/schedules/' + id + '/toggle', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.ok) location.reload(); })
+        .catch(() => {});
+}
+
+function deleteSchedule(id, name) {
+    if (!confirm('Delete schedule "' + name + '"? This cannot be undone.')) return;
+    fetch('/api/schedules/' + id + '/delete', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.ok) location.reload(); })
+        .catch(() => {});
+}
+
+function sendNowSchedule(id) {
+    var card = document.getElementById('sched-' + id);
+    var result = card.querySelector('.sched-result');
+    result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
+    fetch('/api/schedules/' + id + '/send-now', { method: 'POST' })
         .then(r => r.json())
         .then(d => {
             if (d.ok) {
@@ -866,8 +1147,6 @@ function sendNow(isFriday) {
         })
         .catch(() => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
 }
-document.getElementById('sendWeekdayBtn').addEventListener('click', () => sendNow('false'));
-document.getElementById('sendFridayBtn').addEventListener('click', () => sendNow('true'));
 
 // Check for updates on page load and every 30 minutes
 function checkForUpdate() {
@@ -953,14 +1232,11 @@ setInterval(function() {
             document.getElementById('lastRun').textContent = d.last_run || 'Never';
             document.getElementById('lastStatus').textContent = d.last_status || 'N/A';
             document.getElementById('lastEmail').textContent = d.last_email_sent || 'Never';
-            document.getElementById('nextWeekday').textContent = d.next_weekday || 'N/A';
-            document.getElementById('nextFriday').textContent = d.next_friday || 'N/A';
             document.getElementById('cookieStatus').innerHTML = d.cookie_set
                 ? '&#10003; Set'
                 : '<span style="color:#d97706;">&#9888; Not set</span>';
             if (d.timezone) {
                 document.getElementById('timezoneInput').value = d.timezone;
-                document.getElementById('scheduleTimezoneHidden').value = d.timezone;
             }
         })
         .catch(() => {});

@@ -15,8 +15,8 @@ An automated Claude.ai usage reporting tool for Lou Malnati's Pizzeria. It colle
 ## Architecture
 
 ```
-main.py                    Entry point (CLI args: --now, --friday, --no-admin)
-  ├── scheduler.py         APScheduler BlockingScheduler (Mon-Thu + Friday cron jobs, toggleable)
+main.py                    Entry point (CLI args: --now, --schedule <id>, --no-admin)
+  ├── scheduler.py         APScheduler BlockingScheduler (N dynamic schedule jobs, CRUD via admin)
   │     ├── scraper.py     Direct HTTP API calls to claude.ai (no browser needed)
   │     ├── html_generator.py   Self-contained HTML with Chart.js 4.4.1
   │     ├── pdf_generator.py    ReportLab + matplotlib PDF with custom Flowables
@@ -78,10 +78,10 @@ All authenticated via `Cookie: sessionKey=...` header. Org UUID is stored in `se
 - `org_id` — claude.ai organization UUID
 - `session_cookie` — sessionKey cookie value (~30 day lifespan)
 - `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass` (Fernet-encrypted), `smtp_from_name`
-- `weekday_recipients`, `friday_recipients` — email lists
-- `weekday_cron`, `friday_cron` — `{hour, minute}` objects
-- `weekday_enabled`, `friday_enabled` — on/off toggles for scheduled sends
+- `schedules` — array of schedule objects, each with: `id`, `name`, `enabled`, `recurrence_type` (weekdays/every_day/weekly/biweekly/monthly), `days_of_week`, `month_day`, `time` ({hour, minute}), `recipients`, `created_at`, `last_sent`
 - `timezone` — default `America/Chicago`
+
+**Note:** Legacy `weekday_cron`/`friday_cron`/`weekday_recipients`/`friday_recipients`/`weekday_enabled`/`friday_enabled` keys are auto-migrated to the `schedules` array on first load.
 
 ### Fernet encryption
 - Key stored in `OUTPUT_DIR/.fernet_key` (auto-generated on first run, chmod 600)
@@ -102,7 +102,7 @@ All authenticated via `Cookie: sessionKey=...` header. Org UUID is stored in `se
 
 5. **Atomic settings writes** — `save_settings()` writes to a temp file then `os.replace()` to prevent corruption from concurrent Flask + scheduler access.
 
-6. **APScheduler rescheduling** — `reschedule_job()` is thread-safe, called from Flask thread to update scheduler in main thread.
+6. **APScheduler dynamic jobs** — `sync_jobs()` removes all schedule jobs and re-adds from settings. Thread-safe, called from Flask thread after schedule CRUD operations. Biweekly uses weekly CronTrigger + runtime skip via `last_sent` timestamp.
 
 7. **The Anthropic Admin API** (`api.anthropic.com`) is for Console/API usage only, NOT for claude.ai chat product usage. Don't confuse them.
 
@@ -113,7 +113,7 @@ All authenticated via `Cookie: sessionKey=...` header. Org UUID is stored in `se
 1. **System Status** — last scrape, last email, next runs, cookie status (auto-refreshes every 30s)
 2. **Claude.ai Connection** — org ID + sessionKey cookie input
 3. **SMTP / Email Settings** — host, port, user, password (encrypted), from name, test connection button
-4. **Schedule & Recipients** — weekday/Friday time dropdowns with on/off toggles, recipient textareas, **Send Now** buttons for both weekday and Friday
+4. **Email Schedules** — dynamic list of named schedule sets, each with recurrence type, day selection, time picker, recipients textarea, enable/disable toggle, Send Now, and Delete. "Add Schedule" button creates new sets.
 5. **Send Test Report** — single recipient test email
 
 ---
