@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 import json
 import logging
@@ -58,6 +58,19 @@ DEFAULT_SETTINGS = {
     "timezone": "America/Chicago",
 }
 
+# ---------------------------------------------------------------------------
+# Report type registry
+# ---------------------------------------------------------------------------
+REPORT_TYPES = {
+    "full": {
+        "name": "Full Report",
+        "description": "All sections including member directory",
+        "sections": ["overview", "activity", "usage", "claude_code", "members"],
+    },
+}
+
+DEFAULT_REPORT_TYPE = "full"
+
 
 def _migrate_schedules(settings: dict) -> dict:
     """Migrate old weekday/friday schedule format to new multi-schedule list.
@@ -108,6 +121,19 @@ def _migrate_schedules(settings: dict) -> dict:
         settings.pop(key, None)
 
     return settings
+
+
+def _ensure_report_type(settings: dict) -> bool:
+    """Backfill report_type on schedules that predate this field.
+
+    Returns True if any schedule was modified (caller should save).
+    """
+    changed = False
+    for s in settings.get("schedules", []):
+        if "report_type" not in s:
+            s["report_type"] = DEFAULT_REPORT_TYPE
+            changed = True
+    return changed
 
 # ---------------------------------------------------------------------------
 # Fernet encryption helpers
@@ -224,6 +250,9 @@ def load_settings() -> dict:
     needs_migration = "schedules" not in data and "weekday_cron" in data
     if needs_migration:
         _migrate_schedules(data)
+        save_settings(data)
+    # Backfill report_type on schedules that predate multi-version support
+    if _ensure_report_type(data):
         save_settings(data)
     # Merge any missing defaults (for forward compatibility)
     merged = dict(DEFAULT_SETTINGS)

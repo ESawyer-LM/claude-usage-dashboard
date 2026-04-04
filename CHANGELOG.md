@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.6.0] - 2026-04-04
+
+### Added
+- Multi-version report type infrastructure: `REPORT_TYPES` registry in config.py with section-based gating
+- `report_type` field on each schedule, with automatic migration for existing schedules (defaults to "full")
+- Report type dropdown in schedule create/edit forms and collapsed schedule headers in admin UI
+- Report type selector on the Send Test Report card
+- Section gating in PDF and HTML generators: sections are conditionally included based on report type config
+- Report type name included in email subject line
+- Output filenames now include report type (e.g., `claude_usage_dashboard_full.pdf`)
+
 ## [0.5.0] - 2026-04-04
 
 ### Added

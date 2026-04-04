@@ -113,6 +113,8 @@ def run_report_job(schedule_id: str, force: bool = False):
     if not recipients:
         logger.warning(f"Schedule '{schedule['name']}' has no recipients, skipping email")
 
+    report_type = schedule.get("report_type", config.DEFAULT_REPORT_TYPE)
+
     try:
         # 1. Scrape data
         logger.info("Step 1/4: Scraping data...")
@@ -120,16 +122,16 @@ def run_report_job(schedule_id: str, force: bool = False):
 
         # 2. Generate HTML
         logger.info("Step 2/4: Generating HTML dashboard...")
-        html_generator.save_html(data)
+        html_generator.save_html(data, report_type=report_type)
 
         # 3. Generate PDF
         logger.info("Step 3/4: Generating PDF report...")
-        pdf_path = pdf_generator.generate_pdf(data)
+        pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
 
         # 4. Email
         if recipients:
             logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
-            emailer.send_report(pdf_path, data, recipients)
+            emailer.send_report(pdf_path, data, recipients, report_type=report_type)
             logger.info(f"Report emailed to {recipients}")
         else:
             logger.info("Step 4/4: Skipped (no recipients)")
@@ -159,16 +161,18 @@ def run_report_job(schedule_id: str, force: bool = False):
         config.save_settings(settings)
 
 
-def run_test_report(recipient: str):
+def run_test_report(recipient: str, report_type: str = None):
     """Run a test report to a single recipient."""
-    logger.info(f"Running test report for {recipient}")
+    if report_type is None:
+        report_type = config.DEFAULT_REPORT_TYPE
+    logger.info(f"Running test report for {recipient} (report_type={report_type})")
     settings = config.load_settings()
 
     try:
         data = scraper.scrape()
-        html_generator.save_html(data)
-        pdf_path = pdf_generator.generate_pdf(data)
-        emailer.send_report(pdf_path, data, [recipient], is_test=True)
+        html_generator.save_html(data, report_type=report_type)
+        pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
+        emailer.send_report(pdf_path, data, [recipient], is_test=True, report_type=report_type)
 
         settings["last_run"] = datetime.now().isoformat()
         settings["last_status"] = f"test sent to {recipient}"
