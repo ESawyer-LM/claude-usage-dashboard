@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.7.2] - 2026-04-04
+
+### Added
+- Auto-logout after 15 minutes of inactivity with a 1-minute countdown warning popup and "Stay Signed In" button
+
 ## [0.7.1] - 2026-04-04
 
 ### Fixed
