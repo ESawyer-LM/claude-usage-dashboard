@@ -219,15 +219,16 @@ def load_settings() -> dict:
         return dict(DEFAULT_SETTINGS)
     with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
+    # Migrate legacy schedule format before merging defaults
+    # (DEFAULT_SETTINGS has "schedules": [] which would mask the old keys)
+    needs_migration = "schedules" not in data and "weekday_cron" in data
+    if needs_migration:
+        _migrate_schedules(data)
+        save_settings(data)
     # Merge any missing defaults (for forward compatibility)
     merged = dict(DEFAULT_SETTINGS)
     merged.update(data)
-    # Migrate legacy schedule format if needed
-    migrated = _migrate_schedules(merged)
-    if "schedules" not in data:
-        # Persist migration
-        save_settings(migrated)
-    return migrated
+    return merged
 
 
 def save_settings(data: dict):
