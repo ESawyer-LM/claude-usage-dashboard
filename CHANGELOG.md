@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.7.1] - 2026-04-04
+
+### Fixed
+- Section headers (e.g., "Weekly Active Users") no longer get separated from their charts by page breaks in the PDF report
+
 ## [0.7.0] - 2026-04-04
 
 ### Added
