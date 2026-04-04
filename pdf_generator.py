@@ -593,6 +593,19 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         ))
         story.append(Spacer(1, 8))
 
+    # --- UTC disclaimer ---
+    utc_style = ParagraphStyle(
+        "utc_note", parent=styles["Normal"], fontSize=8,
+        textColor=colors.HexColor("#1e40af"),
+        backColor=colors.HexColor("#eff6ff"),
+        borderPadding=6, leading=11,
+    )
+    story.append(Paragraph(
+        "Note: Usage dates and times shown in this report are in UTC and may not align with local date/time expectations.",
+        utc_style,
+    ))
+    story.append(Spacer(1, 8))
+
     # --- Stat Cards ---
     story.append(StatCardRow([
         ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned", LM_RED),
