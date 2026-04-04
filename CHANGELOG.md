@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.4.1] - 2026-04-04
+
+### Changed
+- Schedule cards now collapse to a compact summary (name, status, recurrence, time, recipient count, toggle) — click to expand edit form
+- Auto-update reload now polls server every 2s (up to 30 attempts) instead of a fixed 5s timeout, with live progress counter
+
 ## [0.4.0] - 2026-04-04
 
 ### Added
