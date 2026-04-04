@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.4.5] - 2026-04-04
+
+### Changed
+- Email Schedules card moved to position #2 (right after System Status)
+- Schedule cards collapse to compact summary row; click to expand edit form
+- Auto-update reload polls server with live progress counter instead of fixed timeout
+- Fixed schedule migration not running due to DEFAULT_SETTINGS merge order
+
 ## [0.4.2] - 2026-04-04
 
 ## [0.4.1] - 2026-04-04
