@@ -2,6 +2,8 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.4.2] - 2026-04-04
+
 ## [0.4.1] - 2026-04-04
 
 ### Changed
