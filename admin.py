@@ -815,18 +815,24 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <div class="card-body">
 
     {% for s in schedules %}
-    <div class="schedule-card" id="sched-{{ s.id }}" style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:14px;{% if not s.enabled %}opacity:0.6;{% endif %}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <strong style="font-size:15px;" class="sched-name">{{ s.name }}</strong>
-                <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:{% if s.enabled %}#dcfce7;color:#15803d{% else %}#f3f4f6;color:#6b7280{% endif %};">{{ 'Active' if s.enabled else 'Paused' }}</span>
+    <div class="schedule-card" id="sched-{{ s.id }}" style="border:1px solid #e5e7eb;border-radius:10px;margin-bottom:14px;{% if not s.enabled %}opacity:0.6;{% endif %}">
+        <!-- Collapsed header — always visible -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;" onclick="toggleSchedCard(event, '{{ s.id }}')">
+            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+                <span style="font-size:10px;color:#9ca3af;transition:transform 0.2s;" class="sched-chevron" id="chevron-{{ s.id }}">&#9660;</span>
+                <strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="sched-name">{{ s.name }}</strong>
+                <span style="font-size:11px;padding:2px 8px;border-radius:4px;flex-shrink:0;background:{% if s.enabled %}#dcfce7;color:#15803d{% else %}#f3f4f6;color:#6b7280{% endif %};">{{ 'Active' if s.enabled else 'Paused' }}</span>
+                <span style="font-size:12px;color:#6b7280;flex-shrink:0;">{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
+                <span style="font-size:11px;color:#9ca3af;flex-shrink:0;">{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
             </div>
-            <label class="toggle">
+            <label class="toggle" style="flex-shrink:0;margin-left:12px;" onclick="event.stopPropagation();">
                 <input type="checkbox" {{ 'checked' if s.enabled }} onchange="toggleSchedule('{{ s.id }}')">
                 <span class="toggle-slider"></span>
             </label>
         </div>
-        <form class="schedule-form" data-id="{{ s.id }}" data-mode="edit">
+        <!-- Expandable detail form — hidden by default -->
+        <div class="sched-detail" id="detail-{{ s.id }}" style="display:none;padding:0 16px 16px 16px;border-top:1px solid #f3f4f6;">
+        <form class="schedule-form" data-id="{{ s.id }}" data-mode="edit" style="margin-top:12px;">
             <div class="inline-row">
                 <div class="form-group" style="flex:2;">
                     <label>Name</label>
@@ -893,6 +899,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 <span style="font-size:11px;color:#9ca3af;margin-left:auto;">Next: {{ s.next_run or 'N/A' }} &middot; Last: {{ s.last_sent_fmt }}</span>
             </div>
         </form>
+        </div>
     </div>
     {% endfor %}
 
@@ -1076,6 +1083,21 @@ document.getElementById('testSmtpBtn').addEventListener('click', function() {
 
 // --- Schedule management ---
 
+// Toggle schedule card expand/collapse
+function toggleSchedCard(event, id) {
+    var detail = document.getElementById('detail-' + id);
+    var chevron = document.getElementById('chevron-' + id);
+    var expanded = detail.style.display !== 'none';
+    detail.style.display = expanded ? 'none' : '';
+    chevron.style.transform = expanded ? 'rotate(-90deg)' : '';
+}
+// Collapse all schedule cards on load
+(function() {
+    document.querySelectorAll('.sched-chevron').forEach(function(el) {
+        el.style.transform = 'rotate(-90deg)';
+    });
+})();
+
 function toggleRecurrenceFields(sel) {
     var form = sel.closest('form');
     var daysRow = form.querySelector('.days-row');
@@ -1166,6 +1188,38 @@ function checkForUpdate() {
 checkForUpdate();
 setInterval(checkForUpdate, 1800000);
 
+// Poll server until it responds, then reload
+function waitForRestart(resultEl, btnEl, maxAttempts) {
+    var attempts = 0;
+    var max = maxAttempts || 30;
+    function poll() {
+        attempts++;
+        resultEl.innerHTML = '<span style="color:#6b7280;">Restarting... waiting for server (' + attempts + '/' + max + ')</span>';
+        fetch('/api/status', { signal: AbortSignal.timeout(3000) })
+            .then(function(r) {
+                if (r.ok) {
+                    resultEl.innerHTML = '<span style="color:#16a34a;">&#10003; Restart complete. Reloading...</span>';
+                    setTimeout(function() { location.reload(); }, 500);
+                } else if (attempts < max) {
+                    setTimeout(poll, 2000);
+                } else {
+                    resultEl.innerHTML = '<span style="color:#d97706;">Server not responding after ' + max + ' attempts. Try refreshing manually.</span>';
+                    btnEl.disabled = false;
+                }
+            })
+            .catch(function() {
+                if (attempts < max) {
+                    setTimeout(poll, 2000);
+                } else {
+                    resultEl.innerHTML = '<span style="color:#d97706;">Server not responding after ' + max + ' attempts. Try refreshing manually.</span>';
+                    btnEl.disabled = false;
+                }
+            });
+    }
+    // Wait a moment for the service to begin shutting down
+    setTimeout(poll, 3000);
+}
+
 // Install update button
 document.getElementById('installUpdateBtn').addEventListener('click', function() {
     const version = document.getElementById('updateVersion').textContent;
@@ -1183,7 +1237,7 @@ document.getElementById('installUpdateBtn').addEventListener('click', function()
                 result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
                 if (d.restarting) {
                     btn.textContent = 'Restarting...';
-                    setTimeout(function() { location.reload(); }, 5000);
+                    waitForRestart(result, btn, 30);
                 } else {
                     btn.textContent = 'Updated';
                 }
