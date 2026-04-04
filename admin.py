@@ -526,7 +526,7 @@ _BASE_CSS = """
         background: #C8102E; padding: 14px 24px; display: flex;
         align-items: center; justify-content: space-between; color: white;
     }
-    .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
     .navbar-brand .badge {
         width: 32px; height: 32px; border-radius: 50%; background: white;
         display: flex; align-items: center; justify-content: center;
@@ -597,7 +597,7 @@ LOGIN_TEMPLATE = """<!DOCTYPE html>
 <style>""" + _BASE_CSS + """
     .login-box { max-width: 400px; margin: 80px auto; }
 </style></head><body>
-<div class="navbar"><div class="navbar-brand"><div class="badge">LM</div> Claude Dashboard Admin</div></div>
+<div class="navbar"><a class="navbar-brand" href="/login"><div class="badge">LM</div> Claude Dashboard Admin</a></div>
 <div class="container"><div class="login-box"><div class="card">
     <h2>Sign In</h2>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
@@ -614,7 +614,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <html><head><title>Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """</style></head><body>
 <div class="navbar">
-    <div class="navbar-brand"><div class="badge">LM</div> Claude Dashboard Admin</div>
+    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
     <div style="display:flex;gap:16px;align-items:center;">
         <a href="/logs">View Logs</a>
         <a href="#" onclick="document.getElementById('pwModal').style.display='flex';return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
@@ -1254,7 +1254,7 @@ LOGS_TEMPLATE = """<!DOCTYPE html>
     }
 </style></head><body>
 <div class="navbar">
-    <div class="navbar-brand"><div class="badge">LM</div> Claude Dashboard Admin</div>
+    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
     <div style="display:flex;gap:16px;align-items:center;">
         <a href="/dashboard">Dashboard</a>
         <form method="POST" action="/logout" style="display:inline;">
