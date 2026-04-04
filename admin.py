@@ -386,7 +386,7 @@ def create_app(scheduler_ref=None):
 
         def _run():
             try:
-                sched_module.run_report_job(schedule_id=schedule_id)
+                sched_module.run_report_job(schedule_id=schedule_id, force=True)
                 logger.info(f"Report sent via Send Now for schedule '{name}'")
             except Exception as e:
                 logger.error(f"Send Now for schedule '{name}' failed: {e}")
