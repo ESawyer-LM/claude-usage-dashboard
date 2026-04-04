@@ -42,6 +42,8 @@ LM_RED = "#C8102E"
 LM_RED_RGB = (200 / 255, 16 / 255, 46 / 255)
 LM_GREEN = "#16a34a"
 LM_AMBER = "#d97706"
+CC_PURPLE = "#7c3aed"
+CC_PURPLE_RGB = (124 / 255, 58 / 255, 237 / 255)
 LM_GRAY = "#6b7280"
 LM_LIGHT_GRAY = "#f3f4f6"
 
@@ -223,21 +225,22 @@ class StatCardRow(Flowable):
 # Custom Flowable: Section Header
 # ---------------------------------------------------------------------------
 class SectionHeader(Flowable):
-    """Gray uppercase section divider with red left accent bar."""
+    """Gray uppercase section divider with colored left accent bar."""
 
-    def __init__(self, text, width=USABLE_WIDTH):
+    def __init__(self, text, width=USABLE_WIDTH, color=LM_RED):
         super().__init__()
         self.text = text
         self._width = width
         self.height = 24
+        self.color = color
 
     def wrap(self, availWidth, availHeight):
         return self._width, self.height
 
     def draw(self):
         c = self.canv
-        # Red accent bar
-        c.setFillColor(colors.HexColor(LM_RED))
+        # Accent bar
+        c.setFillColor(colors.HexColor(self.color))
         c.rect(0, 4, 3, self.height - 8, fill=1, stroke=0)
         # Text
         c.setFillColor(colors.HexColor(LM_GRAY))
@@ -290,7 +293,8 @@ def _fig_to_image(fig, width, height, dpi=150):
 
 
 
-def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
+def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True,
+                     color=LM_RED, color_rgb=LM_RED_RGB):
     """Create a matplotlib line chart with gradient fill and data point labels."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
     fig.patch.set_facecolor("white")
@@ -308,12 +312,12 @@ def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
     ax.set_xlim(-0.3, n_points - 0.7)
 
     # Gradient fill under the line (top opacity 0.18, fades to 0.01)
-    ax.plot(x, data, color=LM_RED, linewidth=2.5, marker="o", markersize=7,
-            markerfacecolor="white", markeredgecolor=LM_RED, markeredgewidth=2.5,
+    ax.plot(x, data, color=color, linewidth=2.5, marker="o", markersize=7,
+            markerfacecolor="white", markeredgecolor=color, markeredgewidth=2.5,
             zorder=3)
     # Create gradient via imshow behind the line
     z = np.empty((100, 1, 4), dtype=float)
-    r, g, b = LM_RED_RGB
+    r, g, b = color_rgb
     for row in range(100):
         alpha = 0.18 * (1 - row / 100)  # fade from 0.18 at top to ~0 at bottom
         z[row, 0] = [r, g, b, alpha]
@@ -339,7 +343,7 @@ def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
         for i, v in enumerate(data):
             ax.annotate(str(int(v)), (i, v), textcoords="offset points",
                         xytext=(0, 10), ha="center", fontsize=8, fontweight="bold",
-                        color=LM_RED, zorder=4)
+                        color=color, zorder=4)
 
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, fontsize=7, rotation=0)
@@ -353,7 +357,7 @@ def _make_line_chart(labels, data, title=None, subtitle=None, show_labels=True):
     return fig
 
 
-def _make_hbar_chart(names, counts, title):
+def _make_hbar_chart(names, counts, title, color=LM_RED):
     """Create a matplotlib horizontal bar chart."""
     fig, ax = plt.subplots(figsize=(7, max(2, len(names) * 0.35 + 0.8)))
     fig.patch.set_facecolor("white")
@@ -364,7 +368,7 @@ def _make_hbar_chart(names, counts, title):
         return fig
 
     y_pos = range(len(names))
-    ax.barh(y_pos, counts, color=LM_RED, height=0.6, edgecolor="none")
+    ax.barh(y_pos, counts, color=color, height=0.6, edgecolor="none")
     ax.set_yticks(list(y_pos))
     ax.set_yticklabels(names, fontsize=8)
     ax.invert_yaxis()
@@ -508,6 +512,98 @@ def _build_member_table(members, top_projects, top_artifacts):
 
 
 # ---------------------------------------------------------------------------
+# Claude Code user table
+# ---------------------------------------------------------------------------
+def _build_cc_user_table(cc_users, max_users=25):
+    """Build a ReportLab Table for the Claude Code user breakdown."""
+    styles = getSampleStyleSheet()
+
+    cell_style = ParagraphStyle("cc_cell", parent=styles["Normal"], fontSize=7, leading=9)
+    cell_bold = ParagraphStyle("cc_cellbold", parent=styles["Normal"], fontSize=7, leading=9,
+                               fontName="Helvetica-Bold")
+    cell_center = ParagraphStyle("cc_cellcenter", parent=cell_style, alignment=TA_CENTER)
+    cell_center_bold = ParagraphStyle("cc_cellcenterbold", parent=cell_bold, alignment=TA_CENTER)
+    header_style = ParagraphStyle(
+        "cc_header", parent=styles["Normal"], fontSize=6.5, leading=8,
+        textColor=colors.HexColor("#374151"), fontName="Helvetica-Bold"
+    )
+    header_center = ParagraphStyle("cc_headercenter", parent=header_style, alignment=TA_CENTER)
+
+    headers = [
+        Paragraph("USER", header_style),
+        Paragraph("SESSIONS", header_center),
+        Paragraph("LINES", header_center),
+        Paragraph("COMMITS", header_center),
+        Paragraph("PRs", header_center),
+        Paragraph("LAST ACTIVE", header_center),
+    ]
+
+    data_rows = [headers]
+    for u in cc_users[:max_users]:
+        name = u.get("name", "")
+        email = u.get("email", "")
+        sessions = u.get("total_sessions", 0)
+        lines_val = u.get("total_lines_accepted", 0)
+        commits = u.get("commits_created", 0)
+        prs = u.get("pull_requests_created", 0)
+        last_active = u.get("last_active", "—") or "—"
+        if last_active != "—" and len(last_active) >= 10:
+            last_active = last_active[:10]
+
+        name_p = Paragraph(
+            f'<b>{name}</b> <font color="#9ca3af" size="6">{email}</font>',
+            cell_style,
+        )
+
+        sessions_style = cell_center_bold if sessions > 0 else cell_center
+        lines_style = cell_center_bold if lines_val > 0 else cell_center
+        commits_style = cell_center_bold if commits > 0 else cell_center
+        prs_style = cell_center_bold if prs > 0 else cell_center
+
+        data_rows.append([
+            name_p,
+            Paragraph(str(sessions), sessions_style),
+            Paragraph(f"{lines_val:,}", lines_style),
+            Paragraph(str(commits), commits_style),
+            Paragraph(str(prs), prs_style),
+            Paragraph(last_active, cell_center),
+        ])
+
+    col_widths = [
+        USABLE_WIDTH * 0.32,  # USER
+        USABLE_WIDTH * 0.12,  # SESSIONS
+        USABLE_WIDTH * 0.14,  # LINES
+        USABLE_WIDTH * 0.12,  # COMMITS
+        USABLE_WIDTH * 0.10,  # PRs
+        USABLE_WIDTH * 0.20,  # LAST ACTIVE
+    ]
+
+    table = Table(data_rows, colWidths=col_widths, repeatRows=1)
+
+    style_cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d5d7db")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#d1d5db")),
+        ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
+    ]
+
+    for i in range(1, len(data_rows)):
+        if i % 2 == 0:
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#dfe0e3")))
+        else:
+            style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#e8e9eb")))
+
+    table.setStyle(TableStyle(style_cmds))
+    return table
+
+
+# ---------------------------------------------------------------------------
 # Main PDF generation
 # ---------------------------------------------------------------------------
 def generate_pdf(data: dict, output_dir: str = None) -> str:
@@ -530,6 +626,8 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     cc = data.get("claude_code", {})
     cc_summary = cc.get("summary", {})
     cc_users = cc.get("users", [])
+    cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
+    cc_lines_chart = cc.get("lines_chart", {"labels": [], "data": []})
 
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
@@ -755,32 +853,113 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     # =======================================================================
     if cc_summary:
         cc_active = cc_summary.get("active_users", 0)
+        cc_sessions = cc_summary.get("total_sessions", 0)
         cc_lines = cc_summary.get("total_lines_accepted", 0)
-        cc_accept = cc_summary.get("tool_accept_rate", 0)
-        try:
-            cc_accept_str = f"{float(cc_accept) * 100:.1f}%" if float(cc_accept) <= 1 else f"{float(cc_accept):.1f}%"
-        except (ValueError, TypeError):
-            cc_accept_str = "—"
+        cc_commits = cc_summary.get("commits_created", 0)
+        cc_prs = cc_summary.get("pull_requests_created", 0)
 
         user_label = "Active User" if cc_active == 1 else "Active Users"
         story.append(SectionHeader(
-            f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} {user_label}"
+            f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} {user_label}",
+            color=CC_PURPLE,
         ))
         story.append(Spacer(1, 10))
 
-        # Top CC user
-        top_cc = cc_users[0] if cc_users else {}
-        top_cc_name = top_cc.get("name", "—")
-        top_cc_email = top_cc.get("email", "")
-        top_cc_lines = top_cc.get("total_lines_accepted", 0)
-        top_cc_subtitle = f"{top_cc_email} \u00b7 {top_cc_lines:,} lines" if top_cc_email else ""
-
+        # 5 stat cards
         story.append(StatCardRow([
-            ("Lines Accepted", f"{cc_lines:,}", f"{month_str} MTD"),
-            ("Acceptance Rate", cc_accept_str, "Suggestion accept rate"),
-            ("Top User", top_cc_name, top_cc_subtitle),
+            ("Active Users", str(cc_active), f"{month_str} MTD", CC_PURPLE),
+            ("Sessions", str(cc_sessions), f"{month_str} MTD", CC_PURPLE),
+            ("Lines Accepted", f"{cc_lines:,}", f"{month_str} MTD", LM_GREEN),
+            ("Commits", str(cc_commits), f"{month_str} MTD", "#2563eb"),
+            ("Pull Requests", str(cc_prs), f"{month_str} MTD", "#2563eb"),
         ]))
-        story.append(Spacer(1, 18))
+        story.append(Spacer(1, 14))
+
+        # Daily Sessions line chart
+        cc_activity_data = cc_activity_chart.get("data", [])
+        cc_activity_labels = cc_activity_chart.get("labels", [])
+        if cc_activity_data:
+            fig_cc_sessions = _make_line_chart(
+                cc_activity_labels, cc_activity_data,
+                "Claude Code Daily Sessions",
+                color=CC_PURPLE, color_rgb=CC_PURPLE_RGB,
+            )
+            cc_sessions_img = _fig_to_image(fig_cc_sessions, USABLE_WIDTH - 8, 2.2 * inch)
+            chart_table = Table(
+                [[cc_sessions_img]],
+                colWidths=[USABLE_WIDTH],
+            )
+            chart_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+            story.append(Spacer(1, 14))
+
+        # Daily Lines Accepted line chart
+        cc_lines_data = cc_lines_chart.get("data", [])
+        cc_lines_labels = cc_lines_chart.get("labels", [])
+        if cc_lines_data:
+            fig_cc_lines = _make_line_chart(
+                cc_lines_labels, cc_lines_data,
+                "Claude Code Daily Lines Accepted",
+                color=CC_PURPLE, color_rgb=CC_PURPLE_RGB,
+            )
+            cc_lines_img = _fig_to_image(fig_cc_lines, USABLE_WIDTH - 8, 2.2 * inch)
+            chart_table = Table(
+                [[cc_lines_img]],
+                colWidths=[USABLE_WIDTH],
+            )
+            chart_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+            story.append(Spacer(1, 14))
+
+        # Top Users by Lines Accepted horizontal bar chart
+        if cc_users:
+            top_cc_names = [u.get("name", "?") for u in cc_users[:10]]
+            top_cc_lines_vals = [u.get("total_lines_accepted", 0) for u in cc_users[:10]]
+            fig_cc_users = _make_hbar_chart(
+                top_cc_names, top_cc_lines_vals,
+                "Top Claude Code Users by Lines Accepted (MTD)",
+                color=CC_PURPLE,
+            )
+            cc_users_img = _fig_to_image(
+                fig_cc_users, USABLE_WIDTH - 8,
+                max(2, len(top_cc_names) * 0.35 + 0.8) * inch,
+            )
+            chart_table = Table(
+                [[cc_users_img]],
+                colWidths=[USABLE_WIDTH],
+            )
+            chart_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+            story.append(Spacer(1, 14))
+
+        # Claude Code user breakdown table
+        if cc_users:
+            story.append(SectionHeader("Claude Code User Breakdown", color=CC_PURPLE))
+            story.append(Spacer(1, 10))
+            cc_table = _build_cc_user_table(cc_users)
+            story.append(cc_table)
+            story.append(Spacer(1, 18))
 
     # =======================================================================
     # ALL MEMBERS

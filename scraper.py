@@ -275,7 +275,7 @@ def _fetch_claude_code_users(cookie: str, org_id: str) -> list[dict]:
         data = _api_get(
             f"/api/claude_code/metrics_aggs/users"
             f"?start_date={first_of_month}&end_date={end_date}"
-            f"&limit=20&offset=0&sort_by=total_lines_accepted&sort_order=desc"
+            f"&limit=50&offset=0&sort_by=total_lines_accepted&sort_order=desc"
             f"&organization_uuid={org_id}"
             f"&customer_type=claude_ai&subscription_type=team",
             cookie,
@@ -441,6 +441,22 @@ def scrape() -> dict:
                 cc_activity_chart["labels"].append(date_str)
             cc_activity_chart["data"].append(dp.get("sessions_count", 0) or 0)
 
+        # Build Claude Code lines-of-code timeseries for chart
+        logger.debug(f"CC timeseries keys: {list(cc_timeseries.keys())}")
+        cc_lines_chart = {"labels": [], "data": []}
+        lines_series = cc_timeseries.get("lines_of_code", [])
+        if lines_series:
+            logger.debug(f"CC lines_of_code sample: {lines_series[:2]}")
+        for dp in lines_series:
+            date_str = dp.get("date", "")
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+                cc_lines_chart["labels"].append(dt.strftime("%b %d"))
+            except (ValueError, TypeError):
+                cc_lines_chart["labels"].append(date_str)
+            value = dp.get("total_lines_accepted", dp.get("lines_accepted", dp.get("value", 0)))
+            cc_lines_chart["data"].append(int(value) if value else 0)
+
         now = datetime.now(timezone.utc).isoformat()
         result = {
             "scraped_at": now,
@@ -459,6 +475,7 @@ def scrape() -> dict:
                 "summary": cc_summary,
                 "users": cc_users,
                 "activity_chart": cc_activity_chart,
+                "lines_chart": cc_lines_chart,
             },
             "from_cache": False,
         }
