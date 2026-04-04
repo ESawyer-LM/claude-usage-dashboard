@@ -69,13 +69,16 @@ def _build_trigger(schedule: dict, tz_str: str):
 # Report execution
 # ---------------------------------------------------------------------------
 
-def run_report_job(schedule_id: str):
+def run_report_job(schedule_id: str, force: bool = False):
     """Execute the full pipeline for a specific schedule set.
 
     Reads the schedule config from settings.json at execution time to pick
     up any changes made via the admin UI since the job was registered.
+
+    When force=True (Send Now), the enabled check and biweekly skip are
+    bypassed so the report sends regardless of schedule state.
     """
-    logger.info(f"Starting report job for schedule '{schedule_id}'")
+    logger.info(f"Starting report job for schedule '{schedule_id}' (force={force})")
     settings = config.load_settings()
 
     # Find the schedule entry
@@ -89,12 +92,12 @@ def run_report_job(schedule_id: str):
         logger.warning(f"Schedule '{schedule_id}' not found in settings, skipping")
         return
 
-    if not schedule.get("enabled", True):
+    if not force and not schedule.get("enabled", True):
         logger.info(f"Schedule '{schedule['name']}' is disabled, skipping")
         return
 
     # Biweekly skip: if last_sent is within 10 days, skip this run
-    if schedule.get("recurrence_type") == "biweekly" and schedule.get("last_sent"):
+    if not force and schedule.get("recurrence_type") == "biweekly" and schedule.get("last_sent"):
         try:
             last = datetime.fromisoformat(schedule["last_sent"])
             if datetime.now() - last < timedelta(days=10):
