@@ -741,75 +741,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     </div>
 </div>
 
-<!-- Card 2: Claude.ai Connection -->
-<div class="card" id="card-connection">
-    <h2 class="card-header" onclick="toggleCard('card-connection')">Claude.ai Connection</h2>
-    <div class="card-body">
-    {% if cookie_set %}
-    <div style="font-size:13px;color:#16a34a;margin-bottom:12px;">
-        &#10003; Cookie set: <code>{{ cookie_masked }}</code>
-    </div>
-    {% else %}
-    <div style="font-size:13px;color:#d97706;margin-bottom:12px;">
-        &#9888; No session cookie — data collection will not work.
-    </div>
-    {% endif %}
-    <form id="cookieForm">
-        <div class="form-group">
-            <label>Organization ID <span style="color:#C8102E;">*</span></label>
-            <input type="text" name="org_id" value="{{ settings.get('org_id', '') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:monospace;">
-            <div class="hint">DevTools (F12) → Network → filter "members" → copy the UUID from the URL path.</div>
-        </div>
-        <div class="form-group">
-            <label>sessionKey <span style="color:#C8102E;">*</span></label>
-            <input type="password" name="session_cookie" placeholder="Paste your sessionKey from claude.ai..." style="font-family:monospace;">
-            <div class="hint">DevTools (F12) → Application → Cookies → claude.ai → sessionKey. Lasts ~30 days.</div>
-        </div>
-        <button type="submit" class="btn btn-red">Save Connection</button>
-        <span id="cookieResult" style="margin-left:12px;font-size:13px;"></span>
-    </form>
-    </div>
-</div>
-
-<!-- Card 3: SMTP Settings -->
-<div class="card" id="card-smtp">
-    <h2 class="card-header" onclick="toggleCard('card-smtp')">SMTP / Email Settings</h2>
-    <div class="card-body">
-    <form id="smtpForm">
-        <div class="inline-row">
-            <div class="form-group" style="flex:3;">
-                <label>SMTP Host</label>
-                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}">
-            </div>
-            <div class="form-group" style="flex:1;">
-                <label>Port</label>
-                <input type="number" name="smtp_port" value="{{ settings.smtp_port }}">
-                <div class="hint">587 = STARTTLS, 465 = SSL, 25 = none</div>
-            </div>
-        </div>
-        <div class="form-group">
-            <label>SMTP Username</label>
-            <input type="text" name="smtp_user" value="{{ settings.smtp_user }}">
-        </div>
-        <div class="form-group">
-            <label>SMTP Password</label>
-            <input type="password" name="smtp_pass" placeholder="{% if smtp_pass_set %}&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;  (saved){% else %}Enter SMTP password{% endif %}">
-            <div class="hint">Leave blank to keep current password</div>
-        </div>
-        <div class="form-group">
-            <label>From Name</label>
-            <input type="text" name="smtp_from_name" value="{{ settings.smtp_from_name }}">
-        </div>
-        <div style="display:flex;gap:12px;align-items:center;">
-            <button type="submit" class="btn btn-red">Save SMTP Settings</button>
-            <button type="button" class="btn btn-gray" id="testSmtpBtn">Test Connection</button>
-            <span id="smtpResult" style="font-size:13px;"></span>
-        </div>
-    </form>
-    </div>
-</div>
-
-<!-- Card 4: Email Schedules -->
+<!-- Card 2: Email Schedules -->
 <div class="card" id="card-schedule">
     <h2 class="card-header" onclick="toggleCard('card-schedule')">Email Schedules</h2>
     <div class="card-body">
@@ -982,6 +914,74 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     </div>
     <button type="button" class="btn btn-red" onclick="document.getElementById('newScheduleWrapper').style.display='block';this.style.display='none';" id="addScheduleBtn">+ Add Schedule</button>
 
+    </div>
+</div>
+
+<!-- Card 3: Claude.ai Connection -->
+<div class="card" id="card-connection">
+    <h2 class="card-header" onclick="toggleCard('card-connection')">Claude.ai Connection</h2>
+    <div class="card-body">
+    {% if cookie_set %}
+    <div style="font-size:13px;color:#16a34a;margin-bottom:12px;">
+        &#10003; Cookie set: <code>{{ cookie_masked }}</code>
+    </div>
+    {% else %}
+    <div style="font-size:13px;color:#d97706;margin-bottom:12px;">
+        &#9888; No session cookie — data collection will not work.
+    </div>
+    {% endif %}
+    <form id="cookieForm">
+        <div class="form-group">
+            <label>Organization ID <span style="color:#C8102E;">*</span></label>
+            <input type="text" name="org_id" value="{{ settings.get('org_id', '') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:monospace;">
+            <div class="hint">DevTools (F12) → Network → filter "members" → copy the UUID from the URL path.</div>
+        </div>
+        <div class="form-group">
+            <label>sessionKey <span style="color:#C8102E;">*</span></label>
+            <input type="password" name="session_cookie" placeholder="Paste your sessionKey from claude.ai..." style="font-family:monospace;">
+            <div class="hint">DevTools (F12) → Application → Cookies → claude.ai → sessionKey. Lasts ~30 days.</div>
+        </div>
+        <button type="submit" class="btn btn-red">Save Connection</button>
+        <span id="cookieResult" style="margin-left:12px;font-size:13px;"></span>
+    </form>
+    </div>
+</div>
+
+<!-- Card 4: SMTP Settings -->
+<div class="card" id="card-smtp">
+    <h2 class="card-header" onclick="toggleCard('card-smtp')">SMTP / Email Settings</h2>
+    <div class="card-body">
+    <form id="smtpForm">
+        <div class="inline-row">
+            <div class="form-group" style="flex:3;">
+                <label>SMTP Host</label>
+                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}">
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Port</label>
+                <input type="number" name="smtp_port" value="{{ settings.smtp_port }}">
+                <div class="hint">587 = STARTTLS, 465 = SSL, 25 = none</div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>SMTP Username</label>
+            <input type="text" name="smtp_user" value="{{ settings.smtp_user }}">
+        </div>
+        <div class="form-group">
+            <label>SMTP Password</label>
+            <input type="password" name="smtp_pass" placeholder="{% if smtp_pass_set %}&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;  (saved){% else %}Enter SMTP password{% endif %}">
+            <div class="hint">Leave blank to keep current password</div>
+        </div>
+        <div class="form-group">
+            <label>From Name</label>
+            <input type="text" name="smtp_from_name" value="{{ settings.smtp_from_name }}">
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+            <button type="submit" class="btn btn-red">Save SMTP Settings</button>
+            <button type="button" class="btn btn-gray" id="testSmtpBtn">Test Connection</button>
+            <span id="smtpResult" style="font-size:13px;"></span>
+        </div>
+    </form>
     </div>
 </div>
 
