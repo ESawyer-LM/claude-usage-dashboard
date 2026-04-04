@@ -132,6 +132,8 @@ def create_app(scheduler_ref=None):
             test_result=test_result,
             test_msg=test_msg,
             smtp_pass_set=bool(settings.get("smtp_pass", "")),
+            report_types=config.REPORT_TYPES,
+            default_report_type=config.DEFAULT_REPORT_TYPE,
         )
 
     @app.route("/logs")
@@ -261,6 +263,11 @@ def create_app(scheduler_ref=None):
             if not _email_re.match(email):
                 return None, f"Invalid email: {email}"
 
+        # Report type
+        report_type = form.get("report_type", config.DEFAULT_REPORT_TYPE)
+        if report_type not in config.REPORT_TYPES:
+            return None, f"Invalid report type: {report_type}"
+
         data = {
             "name": name,
             "recurrence_type": recurrence_type,
@@ -268,6 +275,7 @@ def create_app(scheduler_ref=None):
             "month_day": month_day,
             "time": {"hour": hour, "minute": minute},
             "recipients": recipients,
+            "report_type": report_type,
         }
         return data, None
 
@@ -421,6 +429,10 @@ def create_app(scheduler_ref=None):
         if not recipient or "@" not in recipient:
             return jsonify({"ok": False, "error": "Valid email address required"}), 400
 
+        report_type = request.form.get("report_type", config.DEFAULT_REPORT_TYPE)
+        if report_type not in config.REPORT_TYPES:
+            report_type = config.DEFAULT_REPORT_TYPE
+
         # Save last test recipient for re-use
         settings = config.load_settings()
         settings["last_test_recipient"] = recipient
@@ -428,7 +440,7 @@ def create_app(scheduler_ref=None):
 
         def _run():
             try:
-                ok, msg = sched_module.run_test_report(recipient)
+                ok, msg = sched_module.run_test_report(recipient, report_type=report_type)
                 logger.info(f"Test report result: ok={ok}, msg={msg}")
             except Exception as e:
                 logger.error(f"Test report thread error: {e}")
@@ -755,6 +767,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 <strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="sched-name">{{ s.name }}</strong>
                 <span style="font-size:11px;padding:2px 8px;border-radius:4px;flex-shrink:0;background:{% if s.enabled %}#dcfce7;color:#15803d{% else %}#f3f4f6;color:#6b7280{% endif %};">{{ 'Active' if s.enabled else 'Paused' }}</span>
                 <span style="font-size:12px;color:#6b7280;flex-shrink:0;">{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
+                <span style="font-size:11px;color:#9ca3af;flex-shrink:0;">{{ report_types.get(s.get('report_type', default_report_type), {}).get('name', 'Full Report') }}</span>
                 <span style="font-size:11px;color:#9ca3af;flex-shrink:0;">{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
             </div>
             <label class="toggle" style="flex-shrink:0;margin-left:12px;" onclick="event.stopPropagation();">
@@ -778,6 +791,14 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                         <option value="weekly" {{ 'selected' if s.recurrence_type == 'weekly' }}>Weekly</option>
                         <option value="biweekly" {{ 'selected' if s.recurrence_type == 'biweekly' }}>Biweekly</option>
                         <option value="monthly" {{ 'selected' if s.recurrence_type == 'monthly' }}>Monthly</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Report Type</label>
+                    <select name="report_type">
+                        {% for rt_key, rt_val in report_types.items() %}
+                        <option value="{{ rt_key }}" {{ 'selected' if s.get('report_type', default_report_type) == rt_key }}>{{ rt_val.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -860,6 +881,14 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                         <option value="weekly" selected>Weekly</option>
                         <option value="biweekly">Biweekly</option>
                         <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Report Type</label>
+                    <select name="report_type">
+                        {% for rt_key, rt_val in report_types.items() %}
+                        <option value="{{ rt_key }}" {{ 'selected' if rt_key == default_report_type }}>{{ rt_val.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -990,9 +1019,19 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     <h2 class="card-header" onclick="toggleCard('card-test')">Send Test Report</h2>
     <div class="card-body">
     <form id="testForm">
-        <div class="form-group">
-            <label>Test Recipient Email</label>
-            <input type="email" name="test_email" value="{{ settings.get('last_test_recipient', '') or settings.smtp_user }}" required>
+        <div class="inline-row">
+            <div class="form-group" style="flex:2;">
+                <label>Test Recipient Email</label>
+                <input type="email" name="test_email" value="{{ settings.get('last_test_recipient', '') or settings.smtp_user }}" required>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Report Type</label>
+                <select name="report_type">
+                    {% for rt_key, rt_val in report_types.items() %}
+                    <option value="{{ rt_key }}" {{ 'selected' if rt_key == default_report_type }}>{{ rt_val.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
         <button type="submit" class="btn btn-red">Send Now</button>
         <span id="testResult" style="margin-left:12px;font-size:13px;"></span>

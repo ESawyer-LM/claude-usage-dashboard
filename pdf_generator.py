@@ -606,13 +606,21 @@ def _build_cc_user_table(cc_users, max_users=25):
 # ---------------------------------------------------------------------------
 # Main PDF generation
 # ---------------------------------------------------------------------------
-def generate_pdf(data: dict, output_dir: str = None) -> str:
-    """Generate the PDF report. Returns the file path."""
+def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) -> str:
+    """Generate the PDF report. Returns the file path.
+
+    report_type selects which sections to include (see config.REPORT_TYPES).
+    """
     if output_dir is None:
         output_dir = config.OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    filepath = os.path.join(output_dir, "claude_usage_dashboard.pdf")
+    if report_type is None:
+        report_type = config.DEFAULT_REPORT_TYPE
+    rt_config = config.REPORT_TYPES.get(report_type, config.REPORT_TYPES[config.DEFAULT_REPORT_TYPE])
+    sections = set(rt_config["sections"])
+
+    filepath = os.path.join(output_dir, f"claude_usage_dashboard_{report_type}.pdf")
 
     members = data.get("members", [])
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
@@ -705,122 +713,124 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     story.append(Spacer(1, 8))
 
     # --- Stat Cards ---
-    story.append(StatCardRow([
-        ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned", LM_RED),
-        ("Active Members", str(active_count), "Onboarded & using Claude", LM_GREEN),
-        ("Pending Invites", str(pending_count), "Haven't accepted invite yet", LM_AMBER),
-        ("Seat Tier", plan_tier, tier_subtitle, LM_RED),
-    ]))
-    story.append(Spacer(1, 18))
+    if "overview" in sections:
+        story.append(StatCardRow([
+            ("Total Seats", str(total_seats), f"{available} available \u00b7 {assigned} assigned", LM_RED),
+            ("Active Members", str(active_count), "Onboarded & using Claude", LM_GREEN),
+            ("Pending Invites", str(pending_count), "Haven't accepted invite yet", LM_AMBER),
+            ("Seat Tier", plan_tier, tier_subtitle, LM_RED),
+        ]))
+        story.append(Spacer(1, 18))
 
     # =======================================================================
     # ACTIVITY ANALYTICS — Featured Daily Chat Activity
     # =======================================================================
-    chat_data = daily_chats.get("data", [])
-    chat_labels = daily_chats.get("labels", [])
-    # Always show exactly 7 days — pad from the front if fewer
-    if chat_data and len(chat_data) < 7:
-        deficit = 7 - len(chat_data)
-        chat_data = [0] * deficit + list(chat_data)
-        chat_labels = [""] * deficit + list(chat_labels)
-    featured_inner_w = USABLE_WIDTH - 22  # room for red border + padding
-    fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
-    chart_img = _fig_to_image(fig_chats, featured_inner_w, 2.2 * inch)
+    if "activity" in sections:
+        chat_data = daily_chats.get("data", [])
+        chat_labels = daily_chats.get("labels", [])
+        # Always show exactly 7 days — pad from the front if fewer
+        if chat_data and len(chat_data) < 7:
+            deficit = 7 - len(chat_data)
+            chat_data = [0] * deficit + list(chat_data)
+            chat_labels = [""] * deficit + list(chat_labels)
+        featured_inner_w = USABLE_WIDTH - 22  # room for red border + padding
+        fig_chats = _make_line_chart(chat_labels, chat_data, "Daily Chat Activity")
+        chart_img = _fig_to_image(fig_chats, featured_inner_w, 2.2 * inch)
 
-    # Section label inside the featured card
-    section_label_style = ParagraphStyle(
-        "featured_label", parent=styles["Normal"], fontSize=7,
-        fontName="Helvetica-Bold", textColor=colors.HexColor(LM_GRAY),
-        spaceAfter=6,
-    )
-    section_label = Paragraph(
-        "ACTIVITY ANALYTICS \u00b7 CLAUDE.AI/ANALYTICS \u00b7 MTD \u00b7 UPDATED DAILY",
-        section_label_style,
-    )
+        # Section label inside the featured card
+        section_label_style = ParagraphStyle(
+            "featured_label", parent=styles["Normal"], fontSize=7,
+            fontName="Helvetica-Bold", textColor=colors.HexColor(LM_GRAY),
+            spaceAfter=6,
+        )
+        section_label = Paragraph(
+            "ACTIVITY ANALYTICS \u00b7 CLAUDE.AI/ANALYTICS \u00b7 MTD \u00b7 UPDATED DAILY",
+            section_label_style,
+        )
 
-    featured_rows = [[section_label], [chart_img]]
-    if chat_data:
-        total_chats = sum(chat_data)
-        peak_chats = max(chat_data)
-        num_days = len(chat_data)
-        avg_chats = total_chats / num_days if num_days else 0
-        engagement = "\u2191 Active" if total_chats > 0 else "\u2014 No activity"
-        summary_row = StatsSummaryRow([
-            (str(total_chats), f"Total chats ({num_days} days)", None),
-            (str(peak_chats), "Peak daily chats", None),
-            (f"{avg_chats:.1f}", "Avg chats / day", None),
-            (engagement, "Team is engaged" if total_chats > 0 else "", LM_GREEN if total_chats > 0 else LM_GRAY),
-        ], width=featured_inner_w)
-        featured_rows.append([summary_row])
+        featured_rows = [[section_label], [chart_img]]
+        if chat_data:
+            total_chats = sum(chat_data)
+            peak_chats = max(chat_data)
+            num_days = len(chat_data)
+            avg_chats = total_chats / num_days if num_days else 0
+            engagement = "\u2191 Active" if total_chats > 0 else "\u2014 No activity"
+            summary_row = StatsSummaryRow([
+                (str(total_chats), f"Total chats ({num_days} days)", None),
+                (str(peak_chats), "Peak daily chats", None),
+                (f"{avg_chats:.1f}", "Avg chats / day", None),
+                (engagement, "Team is engaged" if total_chats > 0 else "", LM_GREEN if total_chats > 0 else LM_GRAY),
+            ], width=featured_inner_w)
+            featured_rows.append([summary_row])
 
-    featured_table = Table(featured_rows, colWidths=[USABLE_WIDTH])
-    featured_table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
-        ("LINEBEFORE", (0, 0), (0, -1), 5, colors.HexColor(LM_RED)),
-        ("LEFTPADDING", (0, 0), (-1, -1), 14),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (0, 0), 10),
-        ("TOPPADDING", (0, 1), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
-    ]))
-    story.append(featured_table)
-    story.append(Spacer(1, 18))
-
-    # =======================================================================
-    # WEEKLY ACTIVE USERS
-    # =======================================================================
-    story.append(SectionHeader(
-        "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window"
-    ))
-    story.append(Spacer(1, 10))
-
-    wau_data = wau_chart.get("data", [])
-    wau_labels = wau_chart.get("labels", [])
-    # Limit WAU to last 7 data points (matching daily chat timeframe)
-    if len(wau_data) > 7:
-        wau_data = wau_data[-7:]
-        wau_labels = wau_labels[-7:]
-    if wau_data:
-        fig_wau = _make_line_chart(wau_labels, wau_data, "Weekly Active Users (WAU)")
-        wau_chart_img = _fig_to_image(fig_wau, USABLE_WIDTH - 8, 2.2 * inch)
-
-        # WAU summary
-        current_wau = wau_data[-1] if wau_data else 0
-        first_wau = wau_data[0] if wau_data else 0
-        if first_wau and first_wau > 0:
-            growth_pct = ((current_wau - first_wau) / first_wau) * 100
-            growth_str = f"+{growth_pct:.0f}%" if growth_pct >= 0 else f"{growth_pct:.0f}%"
-        else:
-            growth_str = "\u2014"
-        wow_str = f"+{wau_change:.1f}%" if wau_change and wau_change >= 0 else (f"{wau_change:.1f}%" if wau_change else "\u2014")
-        first_label = wau_labels[0] if wau_labels else "start"
-
-        wau_summary = StatsSummaryRow([
-            (str(int(current_wau)), "Current WAU", None),
-            (wow_str, "WoW change", LM_GREEN if wau_change and wau_change >= 0 else LM_RED),
-            (utilization_str, "Utilization rate", None),
-            (growth_str, f"Growth since {first_label}", LM_GREEN if growth_str.startswith("+") else LM_RED),
-        ], width=USABLE_WIDTH - 8)
-
-        # Wrap chart + stats in a bordered table
-        wau_table = Table([[wau_chart_img], [wau_summary]], colWidths=[USABLE_WIDTH])
-        wau_table.setStyle(TableStyle([
+        featured_table = Table(featured_rows, colWidths=[USABLE_WIDTH])
+        featured_table.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+            ("LINEBEFORE", (0, 0), (0, -1), 5, colors.HexColor(LM_RED)),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (0, 0), 10),
+            ("TOPPADDING", (0, 1), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, -1), (-1, -1), 8),
         ]))
-        story.append(wau_table)
-    story.append(Spacer(1, 18))
+        story.append(featured_table)
+        story.append(Spacer(1, 18))
+
+        # ===================================================================
+        # WEEKLY ACTIVE USERS
+        # ===================================================================
+        story.append(SectionHeader(
+            "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window"
+        ))
+        story.append(Spacer(1, 10))
+
+        wau_data = wau_chart.get("data", [])
+        wau_labels = wau_chart.get("labels", [])
+        # Limit WAU to last 7 data points (matching daily chat timeframe)
+        if len(wau_data) > 7:
+            wau_data = wau_data[-7:]
+            wau_labels = wau_labels[-7:]
+        if wau_data:
+            fig_wau = _make_line_chart(wau_labels, wau_data, "Weekly Active Users (WAU)")
+            wau_chart_img = _fig_to_image(fig_wau, USABLE_WIDTH - 8, 2.2 * inch)
+
+            # WAU summary
+            current_wau = wau_data[-1] if wau_data else 0
+            first_wau = wau_data[0] if wau_data else 0
+            if first_wau and first_wau > 0:
+                growth_pct = ((current_wau - first_wau) / first_wau) * 100
+                growth_str = f"+{growth_pct:.0f}%" if growth_pct >= 0 else f"{growth_pct:.0f}%"
+            else:
+                growth_str = "\u2014"
+            wow_str = f"+{wau_change:.1f}%" if wau_change and wau_change >= 0 else (f"{wau_change:.1f}%" if wau_change else "\u2014")
+            first_label = wau_labels[0] if wau_labels else "start"
+
+            wau_summary = StatsSummaryRow([
+                (str(int(current_wau)), "Current WAU", None),
+                (wow_str, "WoW change", LM_GREEN if wau_change and wau_change >= 0 else LM_RED),
+                (utilization_str, "Utilization rate", None),
+                (growth_str, f"Growth since {first_label}", LM_GREEN if growth_str.startswith("+") else LM_RED),
+            ], width=USABLE_WIDTH - 8)
+
+            # Wrap chart + stats in a bordered table
+            wau_table = Table([[wau_chart_img], [wau_summary]], colWidths=[USABLE_WIDTH])
+            wau_table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(wau_table)
+        story.append(Spacer(1, 18))
 
     # --- Top Users by Projects ---
-    if top_projects:
+    if "usage" in sections and top_projects:
         fig_proj = _make_hbar_chart(
             [u["name"] for u in top_projects],
             [u["count"] for u in top_projects],
@@ -841,7 +851,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
         story.append(Spacer(1, 14))
 
     # --- Top Users by Artifacts ---
-    if top_artifacts:
+    if "usage" in sections and top_artifacts:
         fig_art = _make_hbar_chart(
             [u["name"] for u in top_artifacts],
             [u["count"] for u in top_artifacts],
@@ -864,7 +874,7 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     # =======================================================================
     # CLAUDE CODE
     # =======================================================================
-    if cc_summary:
+    if "claude_code" in sections and cc_summary:
         cc_active = cc_summary.get("active_users", 0)
         cc_sessions = cc_summary.get("total_sessions", 0)
         cc_lines = cc_summary.get("total_lines_accepted", 0)
@@ -977,15 +987,16 @@ def generate_pdf(data: dict, output_dir: str = None) -> str:
     # =======================================================================
     # ALL MEMBERS
     # =======================================================================
-    story.append(SectionHeader("All Members"))
-    story.append(Spacer(1, 10))
+    if "members" in sections:
+        story.append(SectionHeader("All Members"))
+        story.append(Spacer(1, 10))
 
-    if members:
-        member_table = _build_member_table(members, top_projects, top_artifacts)
-        story.append(member_table)
-    else:
-        no_data = ParagraphStyle("nodata", parent=styles["Normal"], fontSize=10, textColor=colors.gray)
-        story.append(Paragraph("No member data available.", no_data))
+        if members:
+            member_table = _build_member_table(members, top_projects, top_artifacts)
+            story.append(member_table)
+        else:
+            no_data = ParagraphStyle("nodata", parent=styles["Normal"], fontSize=10, textColor=colors.gray)
+            story.append(Paragraph("No member data available.", no_data))
 
     # Build PDF with page background and numbered footer
     NumberedCanvas = _make_numbered_canvas_factory(today_str)

@@ -29,8 +29,15 @@ def _get_initials(name: str) -> str:
     return "?"
 
 
-def generate_html(data: dict) -> str:
-    """Generate the complete HTML dashboard string."""
+def generate_html(data: dict, report_type: str = None) -> str:
+    """Generate the complete HTML dashboard string.
+
+    report_type selects which sections to include (see config.REPORT_TYPES).
+    """
+    if report_type is None:
+        report_type = config.DEFAULT_REPORT_TYPE
+    rt_config = config.REPORT_TYPES.get(report_type, config.REPORT_TYPES[config.DEFAULT_REPORT_TYPE])
+    sections = set(rt_config["sections"])
     members = data.get("members", [])
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
     top_projects = data.get("top_users_projects", [])
@@ -101,6 +108,9 @@ def generate_html(data: dict) -> str:
     project_counts_json = json.dumps([u["count"] for u in top_projects])
     artifact_names_json = json.dumps([u["name"] for u in top_artifacts])
     artifact_counts_json = json.dumps([u["count"] for u in top_artifacts])
+
+    # WAU chart data (used in activity section)
+    wau_chart_data = data.get("wau_chart", {"labels": [], "data": []})
 
     # Donut chart data
     status_labels_json = json.dumps(["Active", "Pending"])
@@ -313,7 +323,7 @@ def generate_html(data: dict) -> str:
     <div class="container">
         {stale_banner}
 
-        <!-- Stats Row -->
+        {"" if "overview" not in sections else f'''<!-- Stats Row -->
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-label">Assigned Seats</div>
@@ -346,13 +356,19 @@ def generate_html(data: dict) -> str:
                 <canvas id="roleChart"></canvas>
             </div>
         </div>
+        '''}
 
-        <!-- Activity Analytics (3 full-width charts, stacked) -->
+        {"" if "activity" not in sections else f'''<!-- Activity Analytics (full-width charts, stacked) -->
         <div class="charts-row-3">
             <div class="chart-card">
                 <h3>Daily Chats (Last 7 Days)</h3>
                 <canvas id="dailyChatsChart"></canvas>
             </div>
+        </div>
+        '''}
+
+        {"" if "usage" not in sections else f'''<!-- Usage Analytics -->
+        <div class="charts-row-3">
             <div class="chart-card">
                 <h3>Top Users by Projects MTD</h3>
                 <canvas id="projectsChart"></canvas>
@@ -362,8 +378,9 @@ def generate_html(data: dict) -> str:
                 <canvas id="artifactsChart"></canvas>
             </div>
         </div>
+        '''}
 
-        <!-- Claude Code Analytics -->
+        {"" if "claude_code" not in sections else f'''<!-- Claude Code Analytics -->
         <div style="margin-bottom:20px;">
             <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Claude Code Analytics (MTD)</h3>
             <div class="stats-row" style="grid-template-columns:repeat(5,1fr);">
@@ -429,8 +446,9 @@ def generate_html(data: dict) -> str:
                 </tbody>
             </table>
         </div>
+        '''}
 
-        <!-- Member Directory -->
+        {"" if "members" not in sections else f'''<!-- Member Directory -->
         <div class="table-card">
             <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Member Directory</h3>
             <div class="table-controls">
@@ -456,6 +474,7 @@ def generate_html(data: dict) -> str:
                 </tbody>
             </table>
         </div>
+        '''}
 
         <!-- Footer -->
         <div class="footer">
@@ -464,7 +483,9 @@ def generate_html(data: dict) -> str:
     </div>
 
     <script>
-        // --- Charts ---
+        // --- Charts (conditionally initialized based on report sections) ---
+
+        {"" if "overview" not in sections else f'''
         // Member Status Donut
         new Chart(document.getElementById('statusChart'), {{
             type: 'doughnut',
@@ -494,7 +515,9 @@ def generate_html(data: dict) -> str:
                 cutout: '65%'
             }}
         }});
+        '''}
 
+        {"" if "activity" not in sections else f'''
         // Daily Chats Line Chart
         new Chart(document.getElementById('dailyChatsChart'), {{
             type: 'line',
@@ -524,7 +547,9 @@ def generate_html(data: dict) -> str:
                 }}
             }}
         }});
+        '''}
 
+        {"" if "usage" not in sections else f'''
         // Top Users by Projects (Horizontal Bar)
         new Chart(document.getElementById('projectsChart'), {{
             type: 'bar',
@@ -574,7 +599,9 @@ def generate_html(data: dict) -> str:
                 }}
             }}
         }});
+        '''}
 
+        {"" if "claude_code" not in sections else f'''
         // Claude Code Sessions (Line Chart)
         new Chart(document.getElementById('ccActivityChart'), {{
             type: 'line',
@@ -685,6 +712,25 @@ def generate_html(data: dict) -> str:
             }}
         }});
 
+        // --- Claude Code Table Sorting ---
+        let ccSortDir = [1, 1, 1, 1, 1, 1];
+        function sortCcTable(col) {{
+            const tbody = document.getElementById('ccUserTableBody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            ccSortDir[col] *= -1;
+            rows.sort((a, b) => {{
+                let aVal = a.cells[col].textContent.trim();
+                let bVal = b.cells[col].textContent.trim();
+                if (col >= 1 && col <= 4) {{ // Numeric columns
+                    return (parseInt(aVal.replace(/,/g, '')) - parseInt(bVal.replace(/,/g, ''))) * ccSortDir[col];
+                }}
+                return aVal.localeCompare(bVal) * ccSortDir[col];
+            }});
+            rows.forEach(r => tbody.appendChild(r));
+        }}
+        '''}
+
+        {"" if "members" not in sections else f'''
         // --- Table Sorting ---
         let sortDir = [1, 1, 1, 1, 1];
         function sortTable(col) {{
@@ -718,36 +764,26 @@ def generate_html(data: dict) -> str:
         }}
         document.getElementById('searchInput').addEventListener('input', filterTable);
         document.getElementById('statusFilter').addEventListener('change', filterTable);
-
-        // --- Claude Code Table Sorting ---
-        let ccSortDir = [1, 1, 1, 1, 1, 1];
-        function sortCcTable(col) {{
-            const tbody = document.getElementById('ccUserTableBody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            ccSortDir[col] *= -1;
-            rows.sort((a, b) => {{
-                let aVal = a.cells[col].textContent.trim();
-                let bVal = b.cells[col].textContent.trim();
-                if (col >= 1 && col <= 4) {{ // Numeric columns
-                    return (parseInt(aVal.replace(/,/g, '')) - parseInt(bVal.replace(/,/g, ''))) * ccSortDir[col];
-                }}
-                return aVal.localeCompare(bVal) * ccSortDir[col];
-            }});
-            rows.forEach(r => tbody.appendChild(r));
-        }}
+        '''}
     </script>
 </body>
 </html>"""
 
 
-def save_html(data: dict, output_dir: str = None) -> str:
-    """Generate and save the HTML dashboard. Returns the file path."""
+def save_html(data: dict, output_dir: str = None, report_type: str = None) -> str:
+    """Generate and save the HTML dashboard. Returns the file path.
+
+    report_type selects which sections to include (see config.REPORT_TYPES).
+    """
     if output_dir is None:
         output_dir = config.OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    html_content = generate_html(data)
-    filepath = os.path.join(output_dir, "claude_usage_dashboard.html")
+    if report_type is None:
+        report_type = config.DEFAULT_REPORT_TYPE
+
+    html_content = generate_html(data, report_type=report_type)
+    filepath = os.path.join(output_dir, f"claude_usage_dashboard_{report_type}.html")
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(html_content)
 

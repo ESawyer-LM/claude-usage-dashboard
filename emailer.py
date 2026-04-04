@@ -19,12 +19,17 @@ def send_report(
     data: dict,
     recipients: list[str],
     is_test: bool = False,
+    report_type: str = None,
 ) -> bool:
     """
     Send the dashboard report email with PDF attachment.
     Reads SMTP settings fresh from settings.json.
     Returns True on success.
     """
+    if report_type is None:
+        report_type = config.DEFAULT_REPORT_TYPE
+    rt_name = config.REPORT_TYPES.get(report_type, {}).get("name", "Report")
+
     settings = config.load_settings()
     smtp_host = settings.get("smtp_host", "smtp.office365.com")
     smtp_port = int(settings.get("smtp_port", 587))
@@ -42,7 +47,7 @@ def send_report(
 
     # Build the email
     today_str = datetime.now().strftime("%A, %B %d, %Y")
-    subject = f"Claude Usage Dashboard \u2014 Lou Malnati's \u2014 {today_str}"
+    subject = f"Claude Usage Dashboard ({rt_name}) \u2014 Lou Malnati's \u2014 {today_str}"
     if is_test:
         subject = f"[TEST] {subject}"
 
@@ -113,7 +118,7 @@ Interactive HTML version saved to: {output_dir}
             pdf_data,
             maintype="application",
             subtype="pdf",
-            filename="claude_usage_dashboard.pdf",
+            filename=f"claude_usage_dashboard_{report_type}.pdf",
         )
     else:
         logger.warning(f"PDF file not found at {pdf_path}, sending email without attachment")
