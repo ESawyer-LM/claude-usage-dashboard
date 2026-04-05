@@ -1336,7 +1336,23 @@ function deleteSchedule(id, name) {
     var deleteBtn = card.querySelector('.btn-delete');
     var result = card.querySelector('.sched-result');
     deleteBtn.style.display = 'none';
-    result.innerHTML = 'Delete "' + name + '"? <button class="btn btn-sm" style="background:#991b1b;color:white;padding:4px 12px;" onclick="confirmDelete(\'' + id + '\')">Yes, delete</button> <button class="btn btn-sm btn-gray" style="padding:4px 12px;" onclick="cancelDelete(\'' + id + '\')">Cancel</button>';
+    // Build confirmation buttons via DOM to avoid quoting issues
+    result.textContent = '';
+    var text = document.createTextNode('Delete "' + name + '"? ');
+    var yesBtn = document.createElement('button');
+    yesBtn.className = 'btn btn-sm';
+    yesBtn.style.cssText = 'background:#991b1b;color:white;padding:4px 12px;';
+    yesBtn.textContent = 'Yes, delete';
+    yesBtn.onclick = function() { confirmDelete(id); };
+    var noBtn = document.createElement('button');
+    noBtn.className = 'btn btn-sm btn-gray';
+    noBtn.style.cssText = 'padding:4px 12px;margin-left:4px;';
+    noBtn.textContent = 'Cancel';
+    noBtn.onclick = function() { cancelDelete(id); };
+    result.appendChild(text);
+    result.appendChild(yesBtn);
+    result.appendChild(document.createTextNode(' '));
+    result.appendChild(noBtn);
 }
 function confirmDelete(id) {
     var card = document.getElementById('sched-' + id);
@@ -1352,7 +1368,7 @@ function confirmDelete(id) {
                 result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
             }
         })
-        .catch(() => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+        .catch(function() { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
 }
 function cancelDelete(id) {
     var card = document.getElementById('sched-' + id);
