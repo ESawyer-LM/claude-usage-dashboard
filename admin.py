@@ -1135,6 +1135,16 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
 </div>
 
+<!-- Inactivity warning modal -->
+<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
+    <div class="modal-box" style="padding:32px;text-align:center;">
+        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
+        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
+        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
+    </div>
+</div>
+
 <script>
 // Collapsible cards
 function toggleCard(cardId) {
@@ -1560,15 +1570,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
-<!-- Inactivity warning modal -->
-<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
-    <div class="modal-box" style="padding:32px;text-align:center;">
-        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
-        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
-        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
-        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
-    </div>
-</div>
 </body></html>"""
 
 LOGS_TEMPLATE = """<!DOCTYPE html>
@@ -1593,6 +1594,15 @@ LOGS_TEMPLATE = """<!DOCTYPE html>
     <div class="card">
         <h2>Application Logs (last 200 lines)</h2>
         <div class="log-box" id="logBox">{{ log_lines }}</div>
+    </div>
+</div>
+<!-- Inactivity warning modal -->
+<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
+    <div class="modal-box" style="padding:32px;text-align:center;">
+        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
+        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
+        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
     </div>
 </div>
 <script>
@@ -1663,13 +1673,4 @@ setInterval(function() {
     resetTimer();
 })();
 </script>
-<!-- Inactivity warning modal -->
-<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
-    <div class="modal-box" style="padding:32px;text-align:center;">
-        <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
-        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
-        <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
-        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
-    </div>
-</div>
 </body></html>"""
