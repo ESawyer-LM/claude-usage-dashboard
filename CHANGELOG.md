@@ -2,6 +2,27 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.7.5] - 2026-04-05
+
+### Added
+- Mobile responsive layout with viewport meta tag and CSS breakpoints for all three templates
+- Toast notification system with slide-in animations for form submission feedback
+- Button loading spinners during async operations (save, send, test, delete)
+- Keyboard shortcuts: Escape closes password modal, triggers "Stay Signed In" on inactivity modal
+- Auto-focus on modal open (password modal focuses first input, inactivity modal focuses button)
+- Login page branding with centered LM badge, subtitle, and version number
+- Styled inline delete confirmations replacing browser `confirm()` dialogs
+- Visual hierarchy: red left-border accent on Status card, "Configuration" section divider
+- Reusable CSS classes: `.modal-overlay`, `.modal-box`, `.btn-sm`, `.btn-loading`, `.status-badge`, `.sched-meta`, `.separator`, `.result-span`, `.toast`
+
+### Changed
+- Schedule card headers now use a two-line layout (name + badge on row 1, metadata on row 2) for better readability
+- Timezone selector moved from Status card to its own "Preferences" section at the bottom of the page
+- Extracted ~50 inline style attributes across all templates into named CSS classes
+
+### Fixed
+- "Add Schedule" button now reappears after clicking Cancel on the new schedule form
+
 ## [0.7.2] - 2026-04-04
 
 ### Added

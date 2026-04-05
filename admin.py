@@ -624,43 +624,105 @@ _BASE_CSS = """
     .card.collapsed .card-header::after { transform: rotate(-90deg); }
     .card-body { overflow: hidden; max-height: 2000px; transition: max-height 0.3s ease; }
     .card.collapsed .card-body { max-height: 0; padding: 0; margin: 0; }
+    .card-status { border-left: 3px solid #C8102E; }
+    .section-divider { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; font-weight: 600; margin: 8px 0 16px; }
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
+    }
+    .modal-box {
+        background: white; border-radius: 12px; padding: 24px; width: 400px;
+        max-width: 90vw; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; }
+    .sched-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; cursor: pointer;
+    }
+    .sched-header-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+    .sched-chevron { font-size: 10px; color: #9ca3af; transition: transform 0.2s; }
+    .sched-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; }
+    .status-badge-active { background: #dcfce7; color: #15803d; }
+    .status-badge-paused { background: #f3f4f6; color: #6b7280; }
+    .sched-meta { font-size: 12px; color: #6b7280; padding-left: 26px; margin-top: 2px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .sched-meta span { flex-shrink: 0; }
+    .btn-sm { padding: 6px 16px; font-size: 13px; }
+    .btn-danger-text { color: #991b1b; }
+    .separator { border: none; border-top: 1px solid #f3f4f6; margin: 16px 0; }
+    .result-span { font-size: 13px; }
+    .btn-loading { pointer-events: none; opacity: 0.6; }
+    .btn-loading::after {
+        content: ''; display: inline-block; width: 14px; height: 14px;
+        border: 2px solid currentColor; border-top-color: transparent;
+        border-radius: 50%; animation: spin 0.6s linear infinite;
+        margin-left: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast-container {
+        position: fixed; top: 16px; right: 16px; z-index: 2000;
+        display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+        padding: 10px 20px; border-radius: 8px; font-size: 13px; pointer-events: auto;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: toastIn 0.3s ease;
+        max-width: 380px;
+    }
+    .toast-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .toast-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .tz-card { background: #fafbfc; }
+    @media (max-width: 640px) {
+        .container { padding: 12px; }
+        .inline-row { flex-direction: column; }
+        .status-grid { grid-template-columns: 1fr; }
+        .navbar { padding: 10px 14px; }
+        .navbar-brand { font-size: 15px; }
+        .card { padding: 16px; }
+        .sched-meta { display: none; }
+        .modal-box { width: auto; margin: 16px; }
+    }
 """
 
 LOGIN_TEMPLATE = """<!DOCTYPE html>
-<html><head><title>Login — Claude Dashboard Admin</title>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Login — Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """
     .login-box { max-width: 400px; margin: 80px auto; }
+    .login-badge { width: 56px; height: 56px; border-radius: 50%; background: #C8102E; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px; color: white; margin: 0 auto 20px; }
 </style></head><body>
 <div class="navbar"><a class="navbar-brand" href="/login"><div class="badge">LM</div> Claude Dashboard Admin</a></div>
-<div class="container"><div class="login-box"><div class="card">
-    <h2>Sign In</h2>
-    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-    <form method="POST">
+<div class="container"><div class="login-box"><div class="card" style="text-align:center;">
+    <div class="login-badge">LM</div>
+    <h2 style="border:none;padding:0;margin-bottom:4px;">Sign In</h2>
+    <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">Claude Usage Dashboard Administration</p>
+    {% if error %}<div class="alert alert-error" style="text-align:left;">{{ error }}</div>{% endif %}
+    <form method="POST" style="text-align:left;">
         <div class="form-group">
             <label>Password</label>
             <input type="password" name="password" autofocus required>
         </div>
         <button type="submit" class="btn btn-red" style="width:100%;">Sign In</button>
     </form>
+    <p style="color:#9ca3af;font-size:11px;margin-top:16px;">v""" + config.VERSION + """</p>
 </div></div></div></body></html>"""
 
 DASHBOARD_TEMPLATE = """<!DOCTYPE html>
-<html><head><title>Claude Dashboard Admin</title>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """</style></head><body>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
     <div style="display:flex;gap:16px;align-items:center;">
         <a href="/logs">View Logs</a>
-        <a href="#" onclick="document.getElementById('pwModal').style.display='flex';return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
+        <a href="#" onclick="document.getElementById('pwModal').style.display='flex';setTimeout(function(){document.querySelector('#pwModal input').focus()},100);return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
         <form method="POST" action="/logout" style="display:inline;">
             <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
         </form>
     </div>
 </div>
 <!-- Password Change Modal -->
-<div id="pwModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:white;border-radius:12px;padding:24px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);">
-        <h2 style="font-size:16px;font-weight:600;margin-bottom:16px;border-bottom:1px solid #f3f4f6;padding-bottom:10px;">Change Password</h2>
+<div id="pwModal" class="modal-overlay">
+    <div class="modal-box">
+        <h2>Change Password</h2>
         <form id="pwForm">
             <div class="form-group">
                 <label>Current Password</label>
@@ -677,12 +739,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div style="display:flex;gap:12px;align-items:center;">
                 <button type="submit" class="btn btn-red">Save</button>
                 <button type="button" class="btn btn-gray" onclick="closePwModal()">Cancel</button>
-                <span id="pwResult" style="font-size:13px;"></span>
+                <span id="pwResult" class="result-span"></span>
             </div>
         </form>
     </div>
 </div>
 
+<div class="toast-container" id="toastContainer"></div>
 <div class="container">
 
 {% if test_result == 'sent' %}
@@ -698,13 +761,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <span style="color:#6b7280; margin-left:4px;">(current: v""" + config.VERSION + """)</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-        <span id="updateResult" style="font-size:13px;"></span>
-        <button type="button" class="btn btn-red" id="installUpdateBtn" style="padding:6px 16px;font-size:13px;">Install Update</button>
+        <span id="updateResult" class="result-span"></span>
+        <button type="button" class="btn btn-red btn-sm" id="installUpdateBtn">Install Update</button>
     </div>
 </div>
 
 <!-- Card 1: Status -->
-<div class="card" id="statusCard">
+<div class="card card-status" id="statusCard">
     <h2>System Status</h2>
     <div class="status-grid">
         <div class="status-item">
@@ -736,44 +799,9 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div class="status-value">v""" + config.VERSION + """</div>
         </div>
     </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f3f4f6;">
-        <div style="display:flex;gap:8px;align-items:center;">
-            <span class="status-label" style="white-space:nowrap;">Timezone</span>
-            <select id="timezoneInput" style="width:280px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
-                {% set tz_options = [
-                    ("US/Eastern", "US Eastern (New York)"),
-                    ("US/Central", "US Central (Chicago)"),
-                    ("US/Mountain", "US Mountain (Denver)"),
-                    ("US/Pacific", "US Pacific (Los Angeles)"),
-                    ("US/Alaska", "US Alaska"),
-                    ("US/Hawaii", "US Hawaii"),
-                    ("America/New_York", "America/New_York"),
-                    ("America/Chicago", "America/Chicago"),
-                    ("America/Denver", "America/Denver"),
-                    ("America/Los_Angeles", "America/Los_Angeles"),
-                    ("America/Phoenix", "America/Phoenix"),
-                    ("America/Anchorage", "America/Anchorage"),
-                    ("Pacific/Honolulu", "Pacific/Honolulu"),
-                    ("America/Toronto", "America/Toronto"),
-                    ("America/Vancouver", "America/Vancouver"),
-                    ("Europe/London", "Europe/London"),
-                    ("Europe/Paris", "Europe/Paris"),
-                    ("Europe/Berlin", "Europe/Berlin"),
-                    ("Asia/Tokyo", "Asia/Tokyo"),
-                    ("Asia/Shanghai", "Asia/Shanghai"),
-                    ("Asia/Kolkata", "Asia/Kolkata"),
-                    ("Australia/Sydney", "Australia/Sydney"),
-                    ("UTC", "UTC"),
-                ] %}
-                {% for val, label in tz_options %}
-                <option value="{{ val }}" {{ 'selected' if settings.timezone == val }}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" class="btn btn-red" style="padding:6px 14px;font-size:13px;" onclick="saveTimezone()">Save</button>
-            <span id="tzResult" style="font-size:13px;"></span>
-        </div>
-    </div>
 </div>
+
+<div class="section-divider">Configuration</div>
 
 <!-- Card 2: Email Schedules -->
 <div class="card" id="card-schedule">
@@ -783,14 +811,18 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     {% for s in schedules %}
     <div class="schedule-card" id="sched-{{ s.id }}" style="border:1px solid #e5e7eb;border-radius:10px;margin-bottom:14px;{% if not s.enabled %}opacity:0.6;{% endif %}">
         <!-- Collapsed header — always visible -->
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;" onclick="toggleSchedCard(event, '{{ s.id }}')">
-            <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-                <span style="font-size:10px;color:#9ca3af;transition:transform 0.2s;" class="sched-chevron" id="chevron-{{ s.id }}">&#9660;</span>
-                <strong style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="sched-name">{{ s.name }}</strong>
-                <span style="font-size:11px;padding:2px 8px;border-radius:4px;flex-shrink:0;background:{% if s.enabled %}#dcfce7;color:#15803d{% else %}#f3f4f6;color:#6b7280{% endif %};">{{ 'Active' if s.enabled else 'Paused' }}</span>
-                <span style="font-size:12px;color:#6b7280;flex-shrink:0;">{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
-                <span style="font-size:11px;color:#9ca3af;flex-shrink:0;">{{ report_types.get(s.get('report_type', default_report_type), {}).get('name', 'Full Report') }}</span>
-                <span style="font-size:11px;color:#9ca3af;flex-shrink:0;">{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
+        <div class="sched-header" onclick="toggleSchedCard(event, '{{ s.id }}')">
+            <div style="flex:1;min-width:0;">
+                <div class="sched-header-info">
+                    <span class="sched-chevron" id="chevron-{{ s.id }}">&#9660;</span>
+                    <strong class="sched-name">{{ s.name }}</strong>
+                    <span class="status-badge {{ 'status-badge-active' if s.enabled else 'status-badge-paused' }}">{{ 'Active' if s.enabled else 'Paused' }}</span>
+                </div>
+                <div class="sched-meta">
+                    <span>{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
+                    <span>{{ report_types.get(s.get('report_type', default_report_type), {}).get('name', 'Full Report') }}</span>
+                    <span>{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
+                </div>
             </div>
             <label class="toggle" style="flex-shrink:0;margin-left:12px;" onclick="event.stopPropagation();">
                 <input type="checkbox" {{ 'checked' if s.enabled }} onchange="toggleSchedule('{{ s.id }}')">
@@ -799,6 +831,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         </div>
         <!-- Expandable detail form — hidden by default -->
         <div class="sched-detail" id="detail-{{ s.id }}" style="display:none;padding:0 16px 16px 16px;border-top:1px solid #f3f4f6;">
+
         <form class="schedule-form" data-id="{{ s.id }}" data-mode="edit" style="margin-top:12px;">
             <div class="inline-row">
                 <div class="form-group" style="flex:2;">
@@ -867,10 +900,10 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <button type="submit" class="btn btn-red" style="padding:6px 16px;font-size:13px;">Save</button>
-                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;" onclick="sendNowSchedule('{{ s.id }}')">Send Now</button>
-                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;color:#991b1b;" onclick="deleteSchedule('{{ s.id }}', '{{ s.name | e }}')">Delete</button>
-                <span class="sched-result" style="font-size:13px;"></span>
+                <button type="submit" class="btn btn-red btn-sm">Save</button>
+                <button type="button" class="btn btn-gray btn-sm" onclick="sendNowSchedule('{{ s.id }}', this)">Send Now</button>
+                <button type="button" class="btn btn-gray btn-sm btn-danger-text btn-delete" onclick="deleteSchedule('{{ s.id }}', '{{ s.name | e }}')">Delete</button>
+                <span class="sched-result result-span"></span>
                 <span style="font-size:11px;color:#9ca3af;margin-left:auto;">Next: {{ s.next_run or 'N/A' }} &middot; Last: {{ s.last_sent_fmt }}</span>
             </div>
         </form>
@@ -884,7 +917,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     </div>
     {% endif %}
 
-    <hr style="border:none;border-top:1px solid #f3f4f6;margin:16px 0;">
+    <hr class="separator">
 
     <!-- Add new schedule (collapsible) -->
     <div id="newScheduleWrapper" style="display:none;border:2px dashed #d1d5db;border-radius:10px;padding:16px;margin-bottom:12px;">
@@ -957,9 +990,9 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-                <button type="submit" class="btn btn-red" style="padding:6px 16px;font-size:13px;">Create Schedule</button>
-                <button type="button" class="btn btn-gray" style="padding:6px 16px;font-size:13px;" onclick="document.getElementById('newScheduleWrapper').style.display='none';">Cancel</button>
-                <span id="newSchedResult" style="font-size:13px;"></span>
+                <button type="submit" class="btn btn-red btn-sm">Create Schedule</button>
+                <button type="button" class="btn btn-gray btn-sm" onclick="document.getElementById('newScheduleWrapper').style.display='none';document.getElementById('addScheduleBtn').style.display='';">Cancel</button>
+                <span id="newSchedResult" class="result-span"></span>
             </div>
         </form>
     </div>
@@ -993,7 +1026,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             <div class="hint">DevTools (F12) → Application → Cookies → claude.ai → sessionKey. Lasts ~30 days.</div>
         </div>
         <button type="submit" class="btn btn-red">Save Connection</button>
-        <span id="cookieResult" style="margin-left:12px;font-size:13px;"></span>
+        <span id="cookieResult" class="result-span" style="margin-left:12px;"></span>
     </form>
     </div>
 </div>
@@ -1030,7 +1063,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <div style="display:flex;gap:12px;align-items:center;">
             <button type="submit" class="btn btn-red">Save SMTP Settings</button>
             <button type="button" class="btn btn-gray" id="testSmtpBtn">Test Connection</button>
-            <span id="smtpResult" style="font-size:13px;"></span>
+            <span id="smtpResult" class="result-span"></span>
         </div>
     </form>
     </div>
@@ -1056,8 +1089,47 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
         <button type="submit" class="btn btn-red">Send Now</button>
-        <span id="testResult" style="margin-left:12px;font-size:13px;"></span>
+        <span id="testResult" class="result-span" style="margin-left:12px;"></span>
     </form>
+    </div>
+</div>
+
+<!-- Timezone Preferences -->
+<div class="card tz-card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="status-label" style="white-space:nowrap;">Timezone</span>
+        <select id="timezoneInput" style="width:280px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+            {% set tz_options = [
+                ("US/Eastern", "US Eastern (New York)"),
+                ("US/Central", "US Central (Chicago)"),
+                ("US/Mountain", "US Mountain (Denver)"),
+                ("US/Pacific", "US Pacific (Los Angeles)"),
+                ("US/Alaska", "US Alaska"),
+                ("US/Hawaii", "US Hawaii"),
+                ("America/New_York", "America/New_York"),
+                ("America/Chicago", "America/Chicago"),
+                ("America/Denver", "America/Denver"),
+                ("America/Los_Angeles", "America/Los_Angeles"),
+                ("America/Phoenix", "America/Phoenix"),
+                ("America/Anchorage", "America/Anchorage"),
+                ("Pacific/Honolulu", "Pacific/Honolulu"),
+                ("America/Toronto", "America/Toronto"),
+                ("America/Vancouver", "America/Vancouver"),
+                ("Europe/London", "Europe/London"),
+                ("Europe/Paris", "Europe/Paris"),
+                ("Europe/Berlin", "Europe/Berlin"),
+                ("Asia/Tokyo", "Asia/Tokyo"),
+                ("Asia/Shanghai", "Asia/Shanghai"),
+                ("Asia/Kolkata", "Asia/Kolkata"),
+                ("Australia/Sydney", "Australia/Sydney"),
+                ("UTC", "UTC"),
+            ] %}
+            {% for val, label in tz_options %}
+            <option value="{{ val }}" {{ 'selected' if settings.timezone == val }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="button" class="btn btn-red btn-sm" onclick="saveTimezone()">Save</button>
+        <span id="tzResult" class="result-span"></span>
     </div>
 </div>
 
@@ -1082,10 +1154,33 @@ function toggleCard(cardId) {
     });
 })();
 
+// Toast notifications
+function showToast(msg, type) {
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + (type || 'success');
+    toast.textContent = msg;
+    document.getElementById('toastContainer').appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+}
+
+// Button loading state helpers
+function btnLoading(btn) {
+    if (!btn) return;
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+}
+function btnDone(btn) {
+    if (!btn) return;
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+}
+
 // Save timezone
 function saveTimezone() {
     var tz = document.getElementById('timezoneInput').value.trim();
     var result = document.getElementById('tzResult');
+    var btn = result.previousElementSibling;
+    btnLoading(btn);
     result.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
     fetch('/api/reschedule', {
         method: 'POST',
@@ -1094,13 +1189,16 @@ function saveTimezone() {
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {
+        btnDone(btn);
         if (d.ok) {
             result.innerHTML = '<span style="color:#16a34a;">&#10003; Saved</span>';
+            showToast('Timezone saved', 'success');
         } else {
             result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+            showToast(d.error || 'Error saving timezone', 'error');
         }
     })
-    .catch(function() { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+    .catch(function() { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
 }
 
 // Helper: submit form via fetch
@@ -1108,17 +1206,22 @@ function formFetch(formId, url, resultId) {
     document.getElementById(formId).addEventListener('submit', function(e) {
         e.preventDefault();
         const result = document.getElementById(resultId);
+        const btn = this.querySelector('button[type="submit"]');
+        btnLoading(btn);
         result.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
         fetch(url, { method: 'POST', body: new FormData(this) })
             .then(r => r.json())
             .then(d => {
+                btnDone(btn);
                 if (d.ok) {
                     result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + (d.message || 'Saved') + '</span>';
+                    showToast(d.message || 'Saved', 'success');
                 } else {
                     result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+                    showToast(d.error || 'Error', 'error');
                 }
             })
-            .catch(e => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+            .catch(e => { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
     });
 }
 
@@ -1129,17 +1232,22 @@ formFetch('testForm', '/api/send-test', 'testResult');
 // Test SMTP button
 document.getElementById('testSmtpBtn').addEventListener('click', function() {
     const result = document.getElementById('smtpResult');
+    const btn = this;
+    btnLoading(btn);
     result.innerHTML = '<span style="color:#6b7280;">Testing...</span>';
     fetch('/api/test-smtp', { method: 'POST' })
         .then(r => r.json())
         .then(d => {
+            btnDone(btn);
             if (d.ok) {
                 result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                showToast(d.message, 'success');
             } else {
                 result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.message || d.error) + '</span>';
+                showToast(d.message || d.error, 'error');
             }
         })
-        .catch(e => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+        .catch(e => { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
 });
 
 // --- Schedule management ---
@@ -1168,19 +1276,23 @@ function toggleRecurrenceFields(sel) {
     monthRow.style.display = (val === 'monthly') ? '' : 'none';
 }
 
-function scheduleApiCall(url, fd, resultEl) {
+function scheduleApiCall(url, fd, resultEl, btn) {
+    btnLoading(btn);
     resultEl.innerHTML = '<span style="color:#6b7280;">Saving...</span>';
     fetch(url, { method: 'POST', body: fd })
         .then(r => r.json())
         .then(d => {
+            btnDone(btn);
             if (d.ok) {
                 resultEl.innerHTML = '<span style="color:#16a34a;">&#10003; ' + (d.message || 'Done') + '</span>';
+                showToast(d.message || 'Done', 'success');
                 setTimeout(() => location.reload(), 800);
             } else {
                 resultEl.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+                showToast(d.error || 'Error', 'error');
             }
         })
-        .catch(() => { resultEl.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+        .catch(() => { btnDone(btn); resultEl.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
 }
 
 // Handle save for existing schedule forms
@@ -1189,7 +1301,8 @@ document.querySelectorAll('form.schedule-form').forEach(function(form) {
         e.preventDefault();
         var id = this.dataset.id;
         var result = this.querySelector('.sched-result');
-        scheduleApiCall('/api/schedules/' + id, new FormData(this), result);
+        var btn = this.querySelector('button[type="submit"]');
+        scheduleApiCall('/api/schedules/' + id, new FormData(this), result, btn);
     });
 });
 
@@ -1197,7 +1310,8 @@ document.querySelectorAll('form.schedule-form').forEach(function(form) {
 document.getElementById('newScheduleForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var result = document.getElementById('newSchedResult');
-    scheduleApiCall('/api/schedules', new FormData(this), result);
+    var btn = this.querySelector('button[type="submit"]');
+    scheduleApiCall('/api/schedules', new FormData(this), result, btn);
 });
 
 function toggleSchedule(id) {
@@ -1208,27 +1322,52 @@ function toggleSchedule(id) {
 }
 
 function deleteSchedule(id, name) {
-    if (!confirm('Delete schedule "' + name + '"? This cannot be undone.')) return;
-    fetch('/api/schedules/' + id + '/delete', { method: 'POST' })
-        .then(r => r.json())
-        .then(d => { if (d.ok) location.reload(); })
-        .catch(() => {});
+    var card = document.getElementById('sched-' + id);
+    var deleteBtn = card.querySelector('.btn-delete');
+    var result = card.querySelector('.sched-result');
+    deleteBtn.style.display = 'none';
+    result.innerHTML = 'Delete "' + name + '"? <button class="btn btn-sm" style="background:#991b1b;color:white;padding:4px 12px;" onclick="confirmDelete(\'' + id + '\')">Yes, delete</button> <button class="btn btn-sm btn-gray" style="padding:4px 12px;" onclick="cancelDelete(\'' + id + '\')">Cancel</button>';
 }
-
-function sendNowSchedule(id) {
+function confirmDelete(id) {
     var card = document.getElementById('sched-' + id);
     var result = card.querySelector('.sched-result');
-    result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
-    fetch('/api/schedules/' + id + '/send-now', { method: 'POST' })
+    result.innerHTML = '<span style="color:#6b7280;">Deleting...</span>';
+    fetch('/api/schedules/' + id + '/delete', { method: 'POST' })
         .then(r => r.json())
         .then(d => {
             if (d.ok) {
-                result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                showToast(d.message || 'Schedule deleted', 'success');
+                location.reload();
             } else {
                 result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
             }
         })
         .catch(() => { result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; });
+}
+function cancelDelete(id) {
+    var card = document.getElementById('sched-' + id);
+    card.querySelector('.btn-delete').style.display = '';
+    card.querySelector('.sched-result').innerHTML = '';
+}
+
+function sendNowSchedule(id, btn) {
+    var card = document.getElementById('sched-' + id);
+    var result = card.querySelector('.sched-result');
+    btnLoading(btn);
+    result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
+    fetch('/api/schedules/' + id + '/send-now', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            btnDone(btn);
+            if (d.ok) {
+                result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                showToast(d.message, 'success');
+            } else {
+                result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+                showToast(d.error || 'Error', 'error');
+            }
+        })
+        .catch(() => { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
 }
 
 // Check for updates on page load and every 30 minutes
@@ -1377,6 +1516,7 @@ setInterval(function() {
         secondsLeft = LOGOUT_AFTER / 1000;
         countdownEl.textContent = secondsLeft;
         overlay.style.display = 'flex';
+        document.getElementById('keepAliveBtn').focus();
         countdownInterval = setInterval(function() {
             secondsLeft--;
             countdownEl.textContent = secondsLeft;
@@ -1409,20 +1549,30 @@ setInterval(function() {
     // Start the timer
     resetTimer();
 })();
+
+// --- Keyboard shortcuts ---
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (document.getElementById('pwModal').style.display === 'flex') closePwModal();
+        if (document.getElementById('inactivityModal').style.display === 'flex') {
+            document.getElementById('keepAliveBtn').click();
+        }
+    }
+});
 </script>
 <!-- Inactivity warning modal -->
-<div id="inactivityModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:white;border-radius:12px;padding:32px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);text-align:center;">
+<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
+    <div class="modal-box" style="padding:32px;text-align:center;">
         <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
-        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;">Session Expiring</h2>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
         <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
-        <button id="keepAliveBtn" style="background:#C8102E;color:white;border:none;padding:10px 32px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">Stay Signed In</button>
+        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
     </div>
 </div>
 </body></html>"""
 
 LOGS_TEMPLATE = """<!DOCTYPE html>
-<html><head><title>Logs — Claude Dashboard Admin</title>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Logs — Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """
     .log-box {
         background: #1a1a1a; color: #d1fae5; font-family: 'Consolas', 'Monaco', monospace;
@@ -1482,6 +1632,7 @@ setInterval(function() {
         secondsLeft = LOGOUT_AFTER / 1000;
         countdownEl.textContent = secondsLeft;
         overlay.style.display = 'flex';
+        document.getElementById('keepAliveBtn').focus();
         countdownInterval = setInterval(function() {
             secondsLeft--;
             countdownEl.textContent = secondsLeft;
@@ -1513,12 +1664,12 @@ setInterval(function() {
 })();
 </script>
 <!-- Inactivity warning modal -->
-<div id="inactivityModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:white;border-radius:12px;padding:32px;width:400px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,0.2);text-align:center;">
+<div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
+    <div class="modal-box" style="padding:32px;text-align:center;">
         <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
-        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;">Session Expiring</h2>
+        <h2 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#111827;border:none;padding:0;">Session Expiring</h2>
         <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">You will be logged out in <strong id="inactivityCountdown">60</strong> seconds due to inactivity.</p>
-        <button id="keepAliveBtn" style="background:#C8102E;color:white;border:none;padding:10px 32px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">Stay Signed In</button>
+        <button id="keepAliveBtn" class="btn btn-red" style="padding:10px 32px;">Stay Signed In</button>
     </div>
 </div>
 </body></html>"""
