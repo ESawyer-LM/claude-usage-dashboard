@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.0] - 2026-04-06
+
+### Fixed
+- Fixed version tag alignment — previous 0.8.x tags pointed to wrong commits causing update failures
+- VERSION in code now matches the git tag for reliable auto-updates
+
 ## [0.8.8] - 2026-04-06
 
 ### Changed
