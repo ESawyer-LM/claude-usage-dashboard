@@ -93,6 +93,50 @@ def get_date_bounds(data: dict) -> dict:
     return {"min_date": "", "max_date": ""}
 
 
+def resolve_date_range(date_range_config: dict, run_date=None) -> tuple:
+    """Convert a date range config to absolute (start, end) strings.
+
+    Supports three modes:
+      - "relative": rolling window of N days ending on run_date (or today)
+      - "absolute": fixed start/end dates
+      - None / "all": no filtering (returns None, None)
+
+    Also handles legacy format {"start": "...", "end": "..."} without a mode key
+    by treating it as absolute.
+    """
+    if not date_range_config:
+        return None, None
+
+    mode = date_range_config.get("mode")
+
+    # Legacy format: {start, end} without mode — treat as absolute
+    if mode is None and date_range_config.get("start"):
+        return date_range_config.get("start"), date_range_config.get("end")
+
+    if mode == "relative":
+        from datetime import date as date_cls, timedelta
+        run = run_date or date_cls.today()
+        if isinstance(run, str):
+            run = datetime.strptime(run, "%Y-%m-%d").date()
+        days = int(date_range_config.get("relative_days", 7))
+        start = (run - timedelta(days=days)).isoformat()
+        end = run.isoformat()
+        return start, end
+
+    if mode == "absolute":
+        return date_range_config.get("start"), date_range_config.get("end")
+
+    return None, None  # mode == "all" or unrecognized
+
+
+def _apply_date_range(data, date_range_config, run_date=None):
+    """Resolve a date range config and filter data if applicable."""
+    start, end = resolve_date_range(date_range_config, run_date)
+    if start and end:
+        return filter_data_by_range(data, start, end), start, end
+    return data, None, None
+
+
 def filter_data_by_range(data: dict, start_date: str, end_date: str) -> dict:
     """Return a copy of data with timeseries filtered to [start_date, end_date]."""
     filtered = copy.deepcopy(data)
@@ -728,32 +772,36 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         [c for c in report_config.get("components", []) if c.get("enabled", True)],
         key=lambda c: c.get("order", 0),
     )
-    global_range = report_config.get("global_date_range")
+    global_range_config = report_config.get("global_date_range")
 
     today_str = datetime.now().strftime("%B %-d, %Y") if os.name != "nt" else datetime.now().strftime("%B %d, %Y")
 
+    # Resolve global date range (handles relative/absolute/all modes)
+    global_start, global_end = resolve_date_range(global_range_config)
+
     # Date range display
     date_display = ""
-    if global_range and global_range.get("start") and global_range.get("end"):
+    if global_start and global_end:
         try:
-            start = datetime.strptime(global_range["start"], "%Y-%m-%d").strftime("%B %-d, %Y")
-            end = datetime.strptime(global_range["end"], "%Y-%m-%d").strftime("%B %-d, %Y")
-            date_display = f"{start} \u2013 {end}"
+            s_fmt = datetime.strptime(global_start, "%Y-%m-%d").strftime("%B %-d, %Y")
+            e_fmt = datetime.strptime(global_end, "%Y-%m-%d").strftime("%B %-d, %Y")
+            date_display = f"{s_fmt} \u2013 {e_fmt}"
         except ValueError:
-            date_display = f"{global_range['start']} \u2013 {global_range['end']}"
+            date_display = f"{global_start} \u2013 {global_end}"
 
     body_parts = []
     chart_scripts = []
 
     for idx, comp in enumerate(components):
         key = comp.get("key")
-        # Apply date range filtering
+        # Apply date range filtering — per-component override or global
         comp_data = data
         comp_range = comp.get("date_range")
-        if comp_range and comp_range.get("start") and comp_range.get("end"):
-            comp_data = filter_data_by_range(data, comp_range["start"], comp_range["end"])
-        elif global_range and global_range.get("start") and global_range.get("end"):
-            comp_data = filter_data_by_range(data, global_range["start"], global_range["end"])
+        comp_start, comp_end = resolve_date_range(comp_range)
+        if comp_start and comp_end:
+            comp_data = filter_data_by_range(data, comp_start, comp_end)
+        elif global_start and global_end:
+            comp_data = filter_data_by_range(data, global_start, global_end)
 
         result = None
         if key == "stats_row":

@@ -642,19 +642,39 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
 
     <!-- Global Date Range -->
     <div class="section-panel">
-        <h3>Global Date Range</h3>
-        <div class="inline-row" style="gap:12px;align-items:center;">
-            <div class="form-group" style="flex:1;">
-                <label>Start</label>
-                <input type="date" id="globalStart" value="{{ report.global_date_range.start if report.global_date_range else '' }}">
+        <h3>Date Range</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="dateMode" value="all" onchange="updateDateMode()" {{ 'checked' if not report.global_date_range or (report.global_date_range and report.global_date_range.get('mode') in (None, 'all')) }}>
+                All available data
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="dateMode" value="relative" onchange="updateDateMode()" {{ 'checked' if report.global_date_range and report.global_date_range.get('mode') == 'relative' }}>
+                Rolling window: last
+                <select id="relativeDays" style="width:80px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" onchange="document.querySelector('input[name=dateMode][value=relative]').checked=true;updateDateMode();">
+                    {% for d in [7, 14, 30, 60, 90] %}
+                    <option value="{{ d }}" {{ 'selected' if report.global_date_range and report.global_date_range.get('relative_days')|string == d|string }}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+                days
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="dateMode" value="absolute" onchange="updateDateMode()" {{ 'checked' if report.global_date_range and report.global_date_range.get('mode') == 'absolute' }}>
+                Fixed dates
+            </label>
+            <div id="absoluteDateFields" style="display:none;margin-left:24px;">
+                <div class="inline-row" style="gap:12px;align-items:center;">
+                    <div class="form-group" style="flex:1;margin-bottom:0;">
+                        <input type="date" id="globalStart" value="{{ report.global_date_range.start if report.global_date_range and report.global_date_range.start else '' }}">
+                    </div>
+                    <span style="color:#9ca3af;">to</span>
+                    <div class="form-group" style="flex:1;margin-bottom:0;">
+                        <input type="date" id="globalEnd" value="{{ report.global_date_range.end if report.global_date_range and report.global_date_range.end else '' }}">
+                    </div>
+                </div>
             </div>
-            <div class="form-group" style="flex:1;">
-                <label>End</label>
-                <input type="date" id="globalEnd" value="{{ report.global_date_range.end if report.global_date_range else '' }}">
-            </div>
-            <button class="btn btn-gray btn-sm" onclick="document.getElementById('globalStart').value='';document.getElementById('globalEnd').value='';" style="margin-top:18px;">Reset</button>
         </div>
-        <div id="dateBoundsInfo" style="font-size:11px;color:#9ca3af;margin-top:4px;"></div>
+        <div id="dateBoundsInfo" style="font-size:11px;color:#9ca3af;margin-top:8px;"></div>
     </div>
 
     <!-- Schedule -->
@@ -759,12 +779,25 @@ function renderCanvas() {
         html += '</div>';
         if (supportsDate) {
             var dr = item.date_range || {};
-            var vis = (dr.start || dr.end) ? ' visible' : '';
+            var hasOverride = dr.mode === 'relative' || dr.mode === 'absolute';
+            var vis = hasOverride ? ' visible' : '';
+            var isRel = dr.mode === 'relative';
+            var isAbs = dr.mode === 'absolute';
             html += '<div class="date-override' + vis + '" id="dateOverride_' + item.key + '">' +
-                '<label>Override date range</label><br>' +
-                '<input type="date" data-key="' + item.key + '" data-field="start" value="' + (dr.start || '') + '" onchange="setDateOverride(this)"> &mdash; ' +
-                '<input type="date" data-key="' + item.key + '" data-field="end" value="' + (dr.end || '') + '" onchange="setDateOverride(this)">' +
-                '</div>';
+                '<label style="font-size:11px;color:#6b7280;">Override date range</label>' +
+                '<div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">' +
+                '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">' +
+                '<input type="radio" name="compDate_' + item.key + '" value="relative" data-key="' + item.key + '" data-action="compmode" ' + (isRel ? 'checked' : '') + '> Last ' +
+                '<select data-key="' + item.key + '" data-action="compdays" style="width:60px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;font-size:11px;">';
+            [7,14,30,60,90].forEach(function(d) {
+                html += '<option value="' + d + '"' + (dr.relative_days == d ? ' selected' : '') + '>' + d + '</option>';
+            });
+            html += '</select> days</label>' +
+                '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">' +
+                '<input type="radio" name="compDate_' + item.key + '" value="absolute" data-key="' + item.key + '" data-action="compmode" ' + (isAbs ? 'checked' : '') + '> Fixed: ' +
+                '<input type="date" data-key="' + item.key + '" data-field="start" value="' + (dr.start || '') + '" style="font-size:11px;padding:2px;border:1px solid #d1d5db;border-radius:4px;"> &ndash; ' +
+                '<input type="date" data-key="' + item.key + '" data-field="end" value="' + (dr.end || '') + '" style="font-size:11px;padding:2px;border:1px solid #d1d5db;border-radius:4px;">' +
+                '</label></div></div>';
         }
     });
     el.innerHTML = html;
@@ -774,6 +807,28 @@ function renderCanvas() {
     });
     el.querySelectorAll('[data-action="date"]').forEach(function(btn) {
         btn.addEventListener('click', function() { toggleDateOverride(btn.getAttribute('data-key')); });
+    });
+    // Per-component date mode/days/fixed change handlers
+    el.querySelectorAll('[data-action="compmode"]').forEach(function(radio) {
+        radio.addEventListener('change', function() { updateCompDateRange(radio.getAttribute('data-key')); });
+    });
+    el.querySelectorAll('[data-action="compdays"]').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            var key = sel.getAttribute('data-key');
+            var relRadio = document.querySelector('input[name="compDate_' + key + '"][value="relative"]');
+            if (relRadio) relRadio.checked = true;
+            updateCompDateRange(key);
+        });
+    });
+    el.querySelectorAll('[data-field="start"], [data-field="end"]').forEach(function(inp) {
+        inp.addEventListener('change', function() {
+            var key = inp.getAttribute('data-key');
+            if (key) {
+                var absRadio = document.querySelector('input[name="compDate_' + key + '"][value="absolute"]');
+                if (absRadio) absRadio.checked = true;
+                updateCompDateRange(key);
+            }
+        });
     });
 }
 
@@ -826,14 +881,51 @@ function toggleDateOverride(key) {
     var el = document.getElementById('dateOverride_' + key);
     if (el) el.classList.toggle('visible');
 }
-function setDateOverride(input) {
-    var key = input.getAttribute('data-key');
-    var field = input.getAttribute('data-field');
+function updateCompDateRange(key) {
     var item = canvasItems.find(function(c) { return c.key === key; });
     if (!item) return;
+    var modeEl = document.querySelector('input[name="compDate_' + key + '"]:checked');
+    if (!modeEl) { item.date_range = null; return; }
+    var mode = modeEl.value;
     if (!item.date_range) item.date_range = {};
-    item.date_range[field] = input.value || null;
-    if (!item.date_range.start && !item.date_range.end) item.date_range = null;
+    item.date_range.mode = mode;
+    if (mode === 'relative') {
+        var daysEl = document.querySelector('select[data-key="' + key + '"][data-action="compdays"]');
+        item.date_range.relative_days = parseInt(daysEl.value);
+    } else if (mode === 'absolute') {
+        var startEl = document.querySelector('input[data-key="' + key + '"][data-field="start"]');
+        var endEl = document.querySelector('input[data-key="' + key + '"][data-field="end"]');
+        item.date_range.start = startEl.value || null;
+        item.date_range.end = endEl.value || null;
+    }
+}
+
+// --- Global date range mode ---
+function updateDateMode() {
+    var mode = document.querySelector('input[name="dateMode"]:checked').value;
+    var absFields = document.getElementById('absoluteDateFields');
+    absFields.style.display = mode === 'absolute' ? 'block' : 'none';
+}
+// Init on load
+(function() {
+    var checked = document.querySelector('input[name="dateMode"]:checked');
+    if (checked && checked.value === 'absolute') {
+        document.getElementById('absoluteDateFields').style.display = 'block';
+    }
+})();
+
+function getGlobalDateRange() {
+    var mode = document.querySelector('input[name="dateMode"]:checked').value;
+    if (mode === 'all') return null;
+    if (mode === 'relative') {
+        return {mode: 'relative', relative_days: parseInt(document.getElementById('relativeDays').value)};
+    }
+    if (mode === 'absolute') {
+        var s = document.getElementById('globalStart').value;
+        var e = document.getElementById('globalEnd').value;
+        return {mode: 'absolute', start: s || null, end: e || null};
+    }
+    return null;
 }
 
 // --- Save ---
@@ -843,9 +935,7 @@ function saveReport() {
     var enabled = canvasItems.filter(function(c) { return c.enabled; });
     if (enabled.length === 0) { showToast('Select at least one component', 'error'); return; }
 
-    var globalStart = document.getElementById('globalStart').value;
-    var globalEnd = document.getElementById('globalEnd').value;
-    var globalRange = (globalStart || globalEnd) ? {start: globalStart, end: globalEnd} : null;
+    var globalRange = getGlobalDateRange();
 
     var schedEnabled = document.getElementById('schedEnabled').checked;
     var schedule = {enabled: schedEnabled};
@@ -876,10 +966,8 @@ function previewReport() {
         if (!title) { showToast('Title is required', 'error'); return; }
         var enabled = canvasItems.filter(function(c) { return c.enabled; });
         if (enabled.length === 0) { showToast('Select at least one component', 'error'); return; }
-        var globalStart = document.getElementById('globalStart').value;
-        var globalEnd = document.getElementById('globalEnd').value;
-        var globalRange = (globalStart || globalEnd) ? {start: globalStart, end: globalEnd} : null;
-        var body = {title: title, components: canvasItems, global_date_range: globalRange, schedule: {enabled: false, cron: {day_of_week: 'fri', hour: 8, minute: 0}, timezone: 'America/Chicago', recipients: []}};
+        var globalRange = getGlobalDateRange();
+        var body = {title: title, components: canvasItems, global_date_range: globalRange, schedule: {enabled: false}};
         fetch('/api/reports', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})
             .then(function(r) { return r.json(); })
             .then(function(d) {
