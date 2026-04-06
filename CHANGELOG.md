@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.2] - 2026-04-06
+
+### Changed
+- Updated report builder to use pie charts instead of donut charts
+- Added Account Type Distribution pie chart to report builder component palette
+- Added migration to auto-rename legacy donut component keys in existing custom reports
+- Added backward-compatible aliases in HTML and PDF dispatchers for old donut keys
+
 ## [0.9.1] - 2026-04-06
 
 ### Changed
