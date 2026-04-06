@@ -527,7 +527,9 @@ def _pdf_email_highlights(data):
 _COMPONENT_RENDERERS = {
     "stats_row": lambda data, comps: _pdf_stats_row(data),
     "status_pie": lambda data, comps: _pdf_status_pie(data),
+    "status_donut": lambda data, comps: _pdf_status_pie(data),
     "role_pie": lambda data, comps: _pdf_role_pie(data),
+    "role_donut": lambda data, comps: _pdf_role_pie(data),
     "tier_pie": lambda data, comps: _pdf_tier_pie(data),
     "activity_metrics": lambda data, comps: _pdf_activity_metrics(data),
     "usage_stats": lambda data, comps: _pdf_usage_stats(data),

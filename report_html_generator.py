@@ -832,9 +832,9 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         result = None
         if key == "stats_row":
             result = _render_stats_row(comp_data, comp, idx)
-        elif key == "status_pie":
+        elif key in ("status_pie", "status_donut"):
             result = _render_status_pie(comp_data, comp, idx)
-        elif key == "role_pie":
+        elif key in ("role_pie", "role_donut"):
             result = _render_role_pie(comp_data, comp, idx)
         elif key == "tier_pie":
             result = _render_tier_pie(comp_data, comp, idx)
