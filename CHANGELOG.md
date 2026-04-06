@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.6] - 2026-04-06
+
+### Fixed
+- Fixed internal server error on PDF generation caused by KeepTogether wrapping in pie chart table cells
+
 ## [0.9.5] - 2026-04-06
 
 ### Fixed
