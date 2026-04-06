@@ -51,6 +51,7 @@ from pdf_generator import (
 from report_html_generator import (
     filter_data_by_range,
     generate_executive_summary,
+    resolve_date_range,
 )
 
 logger = config.get_logger()
@@ -533,13 +534,12 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
         [c for c in report_config.get("components", []) if c.get("enabled", True)],
         key=lambda c: c.get("order", 0),
     )
-    global_range = report_config.get("global_date_range")
+    global_range_config = report_config.get("global_date_range")
 
     filepath = os.path.join(output_dir, f"report_{report_id}.pdf")
 
     now = datetime.now()
     today_str = now.strftime("%B %-d, %Y %-I:%M %p")
-    plan_tier = data.get("plan_tier", "Standard")
 
     styles = getSampleStyleSheet()
 
@@ -554,6 +554,9 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
 
     story = []
 
+    # Resolve global date range (handles relative/absolute/all modes)
+    global_start, global_end = resolve_date_range(global_range_config)
+
     # --- Header Banner with report title as subtitle ---
     story.append(HeaderBanner(
         "Claude Usage Dashboard",
@@ -563,13 +566,13 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
     story.append(Spacer(1, 10))
 
     # --- Date range line ---
-    if global_range and global_range.get("start") and global_range.get("end"):
+    if global_start and global_end:
         try:
-            start = datetime.strptime(global_range["start"], "%Y-%m-%d").strftime("%B %-d, %Y")
-            end = datetime.strptime(global_range["end"], "%Y-%m-%d").strftime("%B %-d, %Y")
-            date_text = f"Report period: {start} \u2013 {end}"
+            s_fmt = datetime.strptime(global_start, "%Y-%m-%d").strftime("%B %-d, %Y")
+            e_fmt = datetime.strptime(global_end, "%Y-%m-%d").strftime("%B %-d, %Y")
+            date_text = f"Report period: {s_fmt} \u2013 {e_fmt}"
         except ValueError:
-            date_text = f"Report period: {global_range['start']} \u2013 {global_range['end']}"
+            date_text = f"Report period: {global_start} \u2013 {global_end}"
         date_style = ParagraphStyle(
             "date_range", parent=styles["Normal"],
             fontSize=9, textColor=colors.HexColor("#6b7280"),
@@ -585,13 +588,14 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
         if not renderer:
             continue
 
-        # Apply date range filtering
+        # Apply date range filtering — per-component override or global
         comp_data = data
         comp_range = comp.get("date_range")
-        if comp_range and comp_range.get("start") and comp_range.get("end"):
-            comp_data = filter_data_by_range(data, comp_range["start"], comp_range["end"])
-        elif global_range and global_range.get("start") and global_range.get("end"):
-            comp_data = filter_data_by_range(data, global_range["start"], global_range["end"])
+        comp_start, comp_end = resolve_date_range(comp_range)
+        if comp_start and comp_end:
+            comp_data = filter_data_by_range(data, comp_start, comp_end)
+        elif global_start and global_end:
+            comp_data = filter_data_by_range(data, global_start, global_end)
 
         flowables = renderer(comp_data, components)
         story.extend(flowables)
