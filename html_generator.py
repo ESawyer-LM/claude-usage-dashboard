@@ -357,9 +357,14 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         /* Chart Cards */
         .charts-row-2 {{
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 16px; margin-bottom: 20px;
+        }}
+        .pie-row {{
             display: grid; grid-template-columns: repeat(3, 1fr);
             gap: 16px; margin-bottom: 20px;
         }}
+        .pie-row .chart-card canvas {{ height: 180px !important; }}
         .charts-row-3 {{
             display: flex; flex-direction: column; gap: 20px; margin-bottom: 20px;
         }}
@@ -409,6 +414,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
         @media (max-width: 768px) {{
             .stats-row {{ grid-template-columns: repeat(2, 1fr); }}
             .charts-row-2 {{ grid-template-columns: 1fr; }}
+            .pie-row {{ grid-template-columns: 1fr; }}
             .header {{ flex-direction: column; gap: 12px; text-align: center; }}
         }}
     </style>
@@ -458,7 +464,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
         {usage_stats_html}
 
         <!-- Org Overview (3-column pie charts) -->
-        <div class="charts-row-2">
+        <div class="pie-row">
             <div class="chart-card">
                 <h3>Member Status</h3>
                 <canvas id="statusChart"></canvas>
