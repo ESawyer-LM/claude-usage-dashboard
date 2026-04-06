@@ -170,10 +170,46 @@ def api_update_report(report_id):
 @reports_bp.route("/api/reports/<report_id>", methods=["DELETE"])
 @login_required
 def api_delete_report(report_id):
+    # Find and remove any schedules that reference this custom report
+    removed_schedules = []
+    try:
+        settings = config.load_settings()
+        custom_key = f"custom:{report_id}"
+        original_count = len(settings.get("schedules", []))
+        kept = []
+        for s in settings.get("schedules", []):
+            if s.get("report_type") == custom_key:
+                removed_schedules.append(s.get("name", "Unnamed"))
+            else:
+                kept.append(s)
+        if len(kept) < original_count:
+            settings["schedules"] = kept
+            config.save_settings(settings)
+            import scheduler as sched_module
+            try:
+                sched_module.sync_jobs(settings)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Error cleaning up schedules for report {report_id}: {e}")
+
     if not report_storage.delete_report(report_id):
         return jsonify({"ok": False, "error": "Report not found"}), 404
     _sync_report_schedules()
-    return jsonify({"ok": True})
+    msg = "Report deleted"
+    if removed_schedules:
+        msg += f" along with {len(removed_schedules)} schedule(s): {', '.join(removed_schedules)}"
+    return jsonify({"ok": True, "message": msg, "removed_schedules": removed_schedules})
+
+
+@reports_bp.route("/api/reports/<report_id>/linked-schedules")
+@login_required
+def api_linked_schedules(report_id):
+    """Return schedules that reference this custom report."""
+    settings = config.load_settings()
+    custom_key = f"custom:{report_id}"
+    linked = [s.get("name", "Unnamed") for s in settings.get("schedules", []) if s.get("report_type") == custom_key]
+    return jsonify({"ok": True, "schedules": linked})
 
 
 @reports_bp.route("/api/reports/<report_id>/clone", methods=["POST"])
@@ -503,21 +539,35 @@ REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
 var deleteId = null;
 function confirmDelete(id, title) {
     deleteId = id;
-    document.getElementById('deleteMsg').textContent = 'Delete "' + title + '"? This cannot be undone.';
+    var msgEl = document.getElementById('deleteMsg');
+    msgEl.innerHTML = 'Loading...';
     document.getElementById('deleteModal').style.display = 'flex';
+    fetch('/api/reports/' + id + '/linked-schedules')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var msg = 'Delete "' + title + '"? This cannot be undone.';
+            if (d.schedules && d.schedules.length > 0) {
+                msg += '<br><br><strong style="color:#991b1b;">Warning:</strong> This will also delete ' +
+                    d.schedules.length + ' email schedule(s) using this report:<br>' +
+                    d.schedules.map(function(s) { return '&bull; ' + s; }).join('<br>');
+            }
+            msgEl.innerHTML = msg;
+        }).catch(function() {
+            msgEl.innerHTML = 'Delete "' + title + '"? This cannot be undone.';
+        });
 }
 function doDelete() {
     if (!deleteId) return;
     fetch('/api/reports/' + deleteId, {method: 'DELETE'})
-        .then(r => r.json())
-        .then(d => {
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
             document.getElementById('deleteModal').style.display = 'none';
             if (d.ok) {
                 var card = document.getElementById('card-' + deleteId);
                 if (card) card.remove();
-                showToast('Report deleted', 'success');
+                showToast(d.message || 'Report deleted', 'success');
             } else { showToast(d.error || 'Delete failed', 'error'); }
-        }).catch(() => showToast('Delete failed', 'error'));
+        }).catch(function() { showToast('Delete failed', 'error'); });
 }
 function cloneReport(id) {
     fetch('/api/reports/' + id + '/clone', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
@@ -706,7 +756,7 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
 <div id="deleteModal" class="modal-overlay">
     <div class="modal-box" style="text-align:center;">
         <h2 style="border:none;padding:0;margin-bottom:8px;">Delete this report?</h2>
-        <p style="color:#6b7280;font-size:13px;margin-bottom:20px;">This cannot be undone.</p>
+        <p id="builderDeleteMsg" style="color:#6b7280;font-size:13px;margin-bottom:20px;">This cannot be undone.</p>
         <div style="display:flex;gap:12px;justify-content:center;">
             <button class="btn btn-gray" onclick="document.getElementById('deleteModal').style.display='none'">Cancel</button>
             <button class="btn btn-red" onclick="doDelete()">Delete</button>
@@ -985,7 +1035,22 @@ function previewReport() {
 
 // --- Delete ---
 function deleteReport() {
+    var msgEl = document.getElementById('builderDeleteMsg');
+    msgEl.innerHTML = 'Loading...';
     document.getElementById('deleteModal').style.display = 'flex';
+    fetch('/api/reports/' + reportId + '/linked-schedules')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var msg = 'This cannot be undone.';
+            if (d.schedules && d.schedules.length > 0) {
+                msg += '<br><br><strong style="color:#991b1b;">Warning:</strong> This will also delete ' +
+                    d.schedules.length + ' email schedule(s) using this report:<br>' +
+                    d.schedules.map(function(s) { return '&bull; ' + s; }).join('<br>');
+            }
+            msgEl.innerHTML = msg;
+        }).catch(function() {
+            msgEl.innerHTML = 'This cannot be undone.';
+        });
 }
 function doDelete() {
     fetch('/api/reports/' + reportId, {method: 'DELETE'})
