@@ -197,7 +197,11 @@ def update_report(report_id: str, report_data: dict) -> dict | None:
             r["title"] = report_data.get("title", r["title"])
             r["components"] = report_data.get("components", r["components"])
             r["global_date_range"] = report_data.get("global_date_range", r.get("global_date_range"))
-            r["schedule"] = report_data.get("schedule", r.get("schedule", {}))
+            # Merge schedule fields so partial updates (e.g. just {enabled}) don't wipe cron/recipients
+            if "schedule" in report_data:
+                existing_sched = r.get("schedule", {})
+                existing_sched.update(report_data["schedule"])
+                r["schedule"] = existing_sched
             r["updated_at"] = _now_iso()
             data["reports"][i] = r
             save_reports(data)

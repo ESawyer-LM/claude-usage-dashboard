@@ -580,8 +580,6 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
     .date-toggle:hover { color: #C8102E; }
     .section-panel { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-top: 20px; }
     .section-panel h3 { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px; }
-    .schedule-fields { display: none; }
-    .schedule-fields.visible { display: block; }
     .bottom-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
     .nav-dropdown { position: relative; display: inline-block; }
     .nav-dropdown-btn {
@@ -661,36 +659,15 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
 
     <!-- Schedule -->
     <div class="section-panel">
-        <h3>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
-                <input type="checkbox" id="schedEnabled" onchange="toggleSchedule()" {{ 'checked' if report.schedule and report.schedule.enabled else '' }}>
-                Enable scheduled delivery
-            </label>
-        </h3>
-        <div class="schedule-fields {{ 'visible' if report.schedule and report.schedule.enabled else '' }}" id="schedFields">
-            <div class="inline-row" style="gap:12px;">
-                <div class="form-group">
-                    <label>Days</label>
-                    <select id="schedDays">
-                        <option value="mon-fri" {{ 'selected' if report.schedule and report.schedule.cron and report.schedule.cron.day_of_week == 'mon-fri' else '' }}>Mon-Fri</option>
-                        <option value="fri" {{ 'selected' if report.schedule and report.schedule.cron and report.schedule.cron.day_of_week == 'fri' else '' }}>Friday only</option>
-                        <option value="mon" {{ 'selected' if report.schedule and report.schedule.cron and report.schedule.cron.day_of_week == 'mon' else '' }}>Monday only</option>
-                        <option value="*" {{ 'selected' if report.schedule and report.schedule.cron and report.schedule.cron.day_of_week == '*' else '' }}>Daily</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Hour</label>
-                    <select id="schedHour">
-                        {% for h in range(24) %}
-                        <option value="{{ h }}" {{ 'selected' if report.schedule and report.schedule.cron and report.schedule.cron.hour == h else '' }}>{{ '%02d' % h }}:00</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Recipients (one email per line)</label>
-                <textarea id="schedRecipients" rows="3" style="font-size:13px;">{{ '\n'.join(report.schedule.recipients) if report.schedule and report.schedule.recipients else '' }}</textarea>
-            </div>
+        <h3>Scheduling</h3>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;">
+            <input type="checkbox" id="schedEnabled" {{ 'checked' if report.schedule and report.schedule.enabled else '' }}>
+            Available for scheduled delivery
+        </label>
+        <div style="font-size:12px;color:#9ca3af;margin-top:6px;">
+            When enabled, this report appears in the <strong>Report Type</strong> dropdown on the
+            <a href="/dashboard" style="color:#C8102E;">Dashboard</a> email schedules.
+            Configure delivery days, times, and recipients there.
         </div>
     </div>
 
@@ -871,17 +848,7 @@ function saveReport() {
     var globalRange = (globalStart || globalEnd) ? {start: globalStart, end: globalEnd} : null;
 
     var schedEnabled = document.getElementById('schedEnabled').checked;
-    var recipients = document.getElementById('schedRecipients').value.split('\\n').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-    var schedule = {
-        enabled: schedEnabled,
-        cron: {
-            day_of_week: document.getElementById('schedDays').value,
-            hour: parseInt(document.getElementById('schedHour').value),
-            minute: 0
-        },
-        timezone: 'America/Chicago',
-        recipients: recipients
-    };
+    var schedule = {enabled: schedEnabled};
 
     var body = {title: title, components: canvasItems, global_date_range: globalRange, schedule: schedule};
     var url = isNew ? '/api/reports' : '/api/reports/' + reportId;
@@ -939,12 +906,6 @@ function doDelete() {
             if (d.ok) { window.location.href = '/reports'; }
             else { showToast(d.error || 'Delete failed', 'error'); }
         }).catch(function() { showToast('Delete failed', 'error'); });
-}
-
-// --- Schedule toggle ---
-function toggleSchedule() {
-    var f = document.getElementById('schedFields');
-    f.classList.toggle('visible', document.getElementById('schedEnabled').checked);
 }
 
 // --- Toast ---
