@@ -329,7 +329,10 @@ def _render_role_pie(data, comp, idx):
 
 def _render_tier_pie(data, comp, idx):
     members = data.get("members", [])
-    tier_counts = Counter(m.get("tier", "Standard") for m in members)
+    def _tier_label(m):
+        st = m.get("seat_tier", "team_standard").lower()
+        return "Premium" if ("tier_1" in st or "premium" in st) else "Standard"
+    tier_counts = Counter(_tier_label(m) for m in members)
     canvas_id = f"tierPie_{idx}"
     colors = ['#C8102E', '#2563eb', '#6b7280']
     return f"""

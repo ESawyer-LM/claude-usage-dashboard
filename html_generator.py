@@ -86,7 +86,10 @@ def generate_html(data: dict, report_type: str = None) -> str:
     users_count = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
 
     # Tier aggregation for pie chart
-    tier_counts = Counter(m.get("tier", "Standard") for m in members)
+    def _tier_label(m):
+        st = m.get("seat_tier", "team_standard").lower()
+        return "Premium" if ("tier_1" in st or "premium" in st) else "Standard"
+    tier_counts = Counter(_tier_label(m) for m in members)
 
     today_str = datetime.now().strftime("%B %-d, %Y") if os.name != "nt" else datetime.now().strftime("%B %d, %Y")
 

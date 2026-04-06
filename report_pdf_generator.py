@@ -134,7 +134,10 @@ def _pdf_role_pie(data):
 
 def _pdf_tier_pie(data):
     members = data.get("members", [])
-    tier_counts = Counter(m.get("tier", "Standard") for m in members)
+    def _tier_label(m):
+        st = m.get("seat_tier", "team_standard").lower()
+        return "Premium" if ("tier_1" in st or "premium" in st) else "Standard"
+    tier_counts = Counter(_tier_label(m) for m in members)
 
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(3.5, 3.5))
