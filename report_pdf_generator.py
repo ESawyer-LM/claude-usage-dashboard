@@ -79,7 +79,7 @@ def _pdf_stats_row(data):
     ]
 
 
-def _pdf_status_donut(data):
+def _pdf_status_pie(data):
     members = data.get("members", [])
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
@@ -93,7 +93,7 @@ def _pdf_status_donut(data):
     if sum(sizes) > 0:
         wedges, texts, autotexts = ax.pie(
             sizes, labels=labels, colors=clrs, autopct="%1.0f%%",
-            startangle=90, wedgeprops={"width": 0.35}
+            startangle=90
         )
         for t in autotexts:
             t.set_fontsize(9)
@@ -105,7 +105,7 @@ def _pdf_status_donut(data):
     return [img, Spacer(1, 10)]
 
 
-def _pdf_role_donut(data):
+def _pdf_role_pie(data):
     members = data.get("members", [])
     role_counts = Counter(m.get("role", "User") for m in members)
     owners = sum(v for k, v in role_counts.items() if "owner" in k.lower())
@@ -120,13 +120,38 @@ def _pdf_role_donut(data):
     if sum(sizes) > 0:
         wedges, texts, autotexts = ax.pie(
             sizes, labels=labels, colors=clrs, autopct="%1.0f%%",
-            startangle=90, wedgeprops={"width": 0.35}
+            startangle=90
         )
         for t in autotexts:
             t.set_fontsize(9)
     else:
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
     ax.set_title("Role Distribution", fontsize=11, fontweight="bold", pad=10)
+    fig.tight_layout()
+    img = _fig_to_image(fig, USABLE_WIDTH * 0.5, 2.2 * inch)
+    return [img, Spacer(1, 10)]
+
+
+def _pdf_tier_pie(data):
+    members = data.get("members", [])
+    tier_counts = Counter(m.get("tier", "Standard") for m in members)
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(4, 3))
+    fig.patch.set_facecolor("white")
+    sizes = list(tier_counts.values())
+    labels = list(tier_counts.keys())
+    clrs = ["#C8102E", "#2563eb", "#6b7280"]
+    if sum(sizes) > 0:
+        wedges, texts, autotexts = ax.pie(
+            sizes, labels=labels, colors=clrs[:len(sizes)], autopct="%1.0f%%",
+            startangle=90
+        )
+        for t in autotexts:
+            t.set_fontsize(9)
+    else:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+    ax.set_title("Account Type Distribution", fontsize=11, fontweight="bold", pad=10)
     fig.tight_layout()
     img = _fig_to_image(fig, USABLE_WIDTH * 0.5, 2.2 * inch)
     return [img, Spacer(1, 10)]
@@ -501,8 +526,9 @@ def _pdf_email_highlights(data):
 # ---------------------------------------------------------------------------
 _COMPONENT_RENDERERS = {
     "stats_row": lambda data, comps: _pdf_stats_row(data),
-    "status_donut": lambda data, comps: _pdf_status_donut(data),
-    "role_donut": lambda data, comps: _pdf_role_donut(data),
+    "status_pie": lambda data, comps: _pdf_status_pie(data),
+    "role_pie": lambda data, comps: _pdf_role_pie(data),
+    "tier_pie": lambda data, comps: _pdf_tier_pie(data),
     "activity_metrics": lambda data, comps: _pdf_activity_metrics(data),
     "usage_stats": lambda data, comps: _pdf_usage_stats(data),
     "daily_chats": lambda data, comps: _pdf_daily_chats(data),

@@ -278,18 +278,18 @@ def _render_stats_row(data, comp, idx):
     </div>"""
 
 
-def _render_status_donut(data, comp, idx):
+def _render_status_pie(data, comp, idx):
     members = data.get("members", [])
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
-    canvas_id = f"statusDonut_{idx}"
+    canvas_id = f"statusPie_{idx}"
     return f"""
     <div class="chart-card" style="max-width:400px;">
         <h3>Member Status</h3>
         <canvas id="{canvas_id}"></canvas>
     </div>""", f"""
     new Chart(document.getElementById('{canvas_id}'), {{
-        type: 'doughnut',
+        type: 'pie',
         data: {{
             labels: {json.dumps(["Active", "Pending"])},
             datasets: [{{ data: {json.dumps([active_count, pending_count])}, backgroundColor: ['#16a34a', '#d97706'], borderWidth: 0 }}]
@@ -297,25 +297,24 @@ def _render_status_donut(data, comp, idx):
         options: {{
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {{ legend: {{ position: 'bottom' }} }},
-            cutout: '65%'
+            plugins: {{ legend: {{ position: 'bottom' }} }}
         }}
     }});"""
 
 
-def _render_role_donut(data, comp, idx):
+def _render_role_pie(data, comp, idx):
     members = data.get("members", [])
     role_counts = Counter(m.get("role", "User") for m in members)
     owners = sum(v for k, v in role_counts.items() if "owner" in k.lower())
     users = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
-    canvas_id = f"roleDonut_{idx}"
+    canvas_id = f"rolePie_{idx}"
     return f"""
     <div class="chart-card" style="max-width:400px;">
         <h3>Role Distribution</h3>
         <canvas id="{canvas_id}"></canvas>
     </div>""", f"""
     new Chart(document.getElementById('{canvas_id}'), {{
-        type: 'doughnut',
+        type: 'pie',
         data: {{
             labels: {json.dumps(["Owners", "Users"])},
             datasets: [{{ data: {json.dumps([owners, users])}, backgroundColor: ['#C8102E', '#6b7280'], borderWidth: 0 }}]
@@ -323,8 +322,31 @@ def _render_role_donut(data, comp, idx):
         options: {{
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {{ legend: {{ position: 'bottom' }} }},
-            cutout: '65%'
+            plugins: {{ legend: {{ position: 'bottom' }} }}
+        }}
+    }});"""
+
+
+def _render_tier_pie(data, comp, idx):
+    members = data.get("members", [])
+    tier_counts = Counter(m.get("tier", "Standard") for m in members)
+    canvas_id = f"tierPie_{idx}"
+    colors = ['#C8102E', '#2563eb', '#6b7280']
+    return f"""
+    <div class="chart-card" style="max-width:400px;">
+        <h3>Account Type Distribution</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'pie',
+        data: {{
+            labels: {json.dumps(list(tier_counts.keys()))},
+            datasets: [{{ data: {json.dumps(list(tier_counts.values()))}, backgroundColor: {json.dumps(colors[:len(tier_counts)])}, borderWidth: 0 }}]
+        }},
+        options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {{ legend: {{ position: 'bottom' }} }}
         }}
     }});"""
 
@@ -810,10 +832,12 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         result = None
         if key == "stats_row":
             result = _render_stats_row(comp_data, comp, idx)
-        elif key == "status_donut":
-            result = _render_status_donut(comp_data, comp, idx)
-        elif key == "role_donut":
-            result = _render_role_donut(comp_data, comp, idx)
+        elif key == "status_pie":
+            result = _render_status_pie(comp_data, comp, idx)
+        elif key == "role_pie":
+            result = _render_role_pie(comp_data, comp, idx)
+        elif key == "tier_pie":
+            result = _render_tier_pie(comp_data, comp, idx)
         elif key == "daily_chats":
             result = _render_daily_chats(comp_data, comp, idx)
         elif key == "wau_trend":
