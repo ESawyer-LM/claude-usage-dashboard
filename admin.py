@@ -54,6 +54,10 @@ def create_app(scheduler_ref=None):
     # Store scheduler reference for rescheduling
     app.config["SCHEDULER_REF"] = scheduler_ref
 
+    # Register Report Builder blueprint
+    from report_builder import reports_bp
+    app.register_blueprint(reports_bp)
+
     # Endpoints whose auto-refresh should NOT reset the inactivity timer
     _AUTO_REFRESH_PATHS = {"/api/status", "/logs"}
 
@@ -712,7 +716,8 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
     <div style="display:flex;gap:16px;align-items:center;">
-        <a href="/logs">View Logs</a>
+        <a href="/reports">Reports</a>
+        <a href="/logs">Logs</a>
         <a href="#" onclick="document.getElementById('pwModal').style.display='flex';setTimeout(function(){document.querySelector('#pwModal input').focus()},100);return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
         <form method="POST" action="/logout" style="display:inline;">
             <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
@@ -1601,6 +1606,8 @@ LOGS_TEMPLATE = """<!DOCTYPE html>
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
     <div style="display:flex;gap:16px;align-items:center;">
         <a href="/dashboard">Dashboard</a>
+        <a href="/reports">Reports</a>
+        <a href="/logs">Logs</a>
         <form method="POST" action="/logout" style="display:inline;">
             <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
         </form>

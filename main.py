@@ -98,6 +98,19 @@ def main():
             print(f"    - {s['name']}: monthly (day {s.get('month_day', 1)}) at {time_str}")
         else:
             print(f"    - {s['name']}: {rtype} at {time_str}")
+
+    # Report builder schedules
+    try:
+        import report_storage
+        reports_data = report_storage.load_reports()
+        scheduled_reports = [r for r in reports_data.get("reports", []) if r.get("schedule", {}).get("enabled")]
+        if scheduled_reports:
+            print(f"  {len(scheduled_reports)} custom report schedule(s) active")
+            for r in scheduled_reports:
+                print(f"    - {r.get('title', 'Untitled')}")
+    except Exception:
+        pass
+
     if not args.no_admin:
         print(f"  Admin UI running at http://localhost:{config.ADMIN_PORT}")
     print()

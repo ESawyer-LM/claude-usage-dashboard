@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.7.5"
+VERSION = "0.8.0"
 
 import json
 import logging
@@ -39,6 +39,7 @@ OUTPUT_DIR = str((_BASE_DIR / OUTPUT_DIR).resolve())
 # ---------------------------------------------------------------------------
 SETTINGS_FILE = os.path.join(OUTPUT_DIR, "settings.json")
 CACHE_FILE = os.path.join(OUTPUT_DIR, "last_data.json")
+REPORTS_FILE = os.path.join(OUTPUT_DIR, "reports.json")
 LOG_FILE = os.path.join(OUTPUT_DIR, "dashboard.log")
 FERNET_KEY_FILE = os.path.join(OUTPUT_DIR, ".fernet_key")
 FLASK_SECRET_FILE = os.path.join(OUTPUT_DIR, ".flask_secret")
