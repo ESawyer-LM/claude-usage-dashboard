@@ -133,6 +133,23 @@ def _now_iso():
 # ---------------------------------------------------------------------------
 # Core I/O
 # ---------------------------------------------------------------------------
+_KEY_MIGRATIONS = {
+    "status_donut": "status_pie",
+    "role_donut": "role_pie",
+}
+
+
+def _migrate_component_keys(components: list) -> bool:
+    """Rename legacy component keys. Returns True if any were changed."""
+    changed = False
+    for comp in components:
+        new_key = _KEY_MIGRATIONS.get(comp.get("key"))
+        if new_key:
+            comp["key"] = new_key
+            changed = True
+    return changed
+
+
 def load_reports() -> dict:
     """Load reports.json, creating with defaults if missing."""
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
@@ -147,6 +164,13 @@ def load_reports() -> dict:
     builtin_ids = {t["id"] for t in _BUILTIN_TEMPLATES}
     if not data.get("templates") or builtin_ids - existing_ids:
         data["templates"] = copy.deepcopy(_BUILTIN_TEMPLATES)
+        save_reports(data)
+    # Migrate legacy component keys in custom reports
+    dirty = False
+    for report in data.get("reports", []):
+        if _migrate_component_keys(report.get("components", [])):
+            dirty = True
+    if dirty:
         save_reports(data)
     return data
 
