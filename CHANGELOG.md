@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.8.4] - 2026-04-06
+
+### Fixed
+- Disabled custom reports no longer appear in dashboard schedule Report Type dropdowns
+
 ## [0.8.3] - 2026-04-06
 
 ### Added
