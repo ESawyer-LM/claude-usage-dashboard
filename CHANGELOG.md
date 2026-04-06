@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.8.1] - 2026-04-06
+
+### Fixed
+- Custom reports now appear in email schedule Report Type dropdowns
+- Nav bar converted to dropdown menu on all pages including Reports and Builder
+
 ## [0.8.0] - 2026-04-06
 
 ### Added
