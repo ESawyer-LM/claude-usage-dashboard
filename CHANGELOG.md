@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.8] - 2026-04-06
+
+### Changed
+- Replaced native HTML5 drag-and-drop with pointer-event-based system for report builder section reordering
+- Sections now smoothly slide out of the way during drag with CSS transform animations
+- Dragged section shows as a floating clone with lifted appearance (shadow, red border, slight scale)
+- Added touch device support with pointer capture for reliable tracking
+
 ## [0.9.7] - 2026-04-06
 
 ### Changed
