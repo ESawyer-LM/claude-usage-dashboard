@@ -34,7 +34,11 @@ REPORT_COMPONENTS = [
     {"key": "top_users_artifacts", "label": "Top Users by Artifacts (Bar Chart)", "category": "Activity", "supports_date_range": True},
     {"key": "top_users_chats", "label": "Top Users by Chats (Bar Chart)", "category": "Activity", "supports_date_range": True},
     # --- Claude Code ---
-    {"key": "claude_code_stats", "label": "Claude Code Stats (Lines, Rate, Top User)", "category": "Claude Code", "supports_date_range": False},
+    {"key": "claude_code_stats", "label": "Claude Code Stats (5-Card Summary)", "category": "Claude Code", "supports_date_range": False},
+    {"key": "cc_sessions_chart", "label": "Claude Code Daily Sessions (Line Chart)", "category": "Claude Code", "supports_date_range": False},
+    {"key": "cc_lines_chart", "label": "Claude Code Daily Lines Accepted (Line Chart)", "category": "Claude Code", "supports_date_range": False},
+    {"key": "cc_top_users", "label": "Claude Code Top Users (Bar Charts)", "category": "Claude Code", "supports_date_range": False},
+    {"key": "cc_user_table", "label": "Claude Code User Breakdown (Table)", "category": "Claude Code", "supports_date_range": False},
     # --- People ---
     {"key": "member_directory", "label": "Member Directory Table", "category": "People", "supports_date_range": False},
     # --- Narrative ---
@@ -73,7 +77,11 @@ _BUILTIN_TEMPLATES = [
             {"key": "top_users_projects", "enabled": True, "order": 7, "date_range": None},
             {"key": "top_users_artifacts", "enabled": True, "order": 8, "date_range": None},
             {"key": "claude_code_stats", "enabled": True, "order": 9, "date_range": None},
-            {"key": "member_directory", "enabled": True, "order": 10, "date_range": None},
+            {"key": "cc_sessions_chart", "enabled": True, "order": 10, "date_range": None},
+            {"key": "cc_lines_chart", "enabled": True, "order": 11, "date_range": None},
+            {"key": "cc_top_users", "enabled": True, "order": 12, "date_range": None},
+            {"key": "cc_user_table", "enabled": True, "order": 13, "date_range": None},
+            {"key": "member_directory", "enabled": True, "order": 14, "date_range": None},
         ],
     },
     {
@@ -87,6 +95,9 @@ _BUILTIN_TEMPLATES = [
             {"key": "top_users_projects", "enabled": True, "order": 3, "date_range": None},
             {"key": "top_users_artifacts", "enabled": True, "order": 4, "date_range": None},
             {"key": "claude_code_stats", "enabled": True, "order": 5, "date_range": None},
+            {"key": "cc_sessions_chart", "enabled": True, "order": 6, "date_range": None},
+            {"key": "cc_lines_chart", "enabled": True, "order": 7, "date_range": None},
+            {"key": "cc_top_users", "enabled": True, "order": 8, "date_range": None},
         ],
     },
     {
@@ -120,7 +131,11 @@ _BUILTIN_TEMPLATES = [
             {"key": "top_users_projects", "enabled": True, "order": 11, "date_range": None},
             {"key": "top_users_artifacts", "enabled": True, "order": 12, "date_range": None},
             {"key": "claude_code_stats", "enabled": True, "order": 13, "date_range": None},
-            {"key": "member_directory", "enabled": True, "order": 14, "date_range": None},
+            {"key": "cc_sessions_chart", "enabled": True, "order": 14, "date_range": None},
+            {"key": "cc_lines_chart", "enabled": True, "order": 15, "date_range": None},
+            {"key": "cc_top_users", "enabled": True, "order": 16, "date_range": None},
+            {"key": "cc_user_table", "enabled": True, "order": 17, "date_range": None},
+            {"key": "member_directory", "enabled": True, "order": 18, "date_range": None},
         ],
     },
 ]
