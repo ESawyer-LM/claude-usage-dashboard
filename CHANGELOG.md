@@ -2,6 +2,13 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.1] - 2026-04-06
+
+### Changed
+- Converted Member Status and Role Distribution donut charts to pie charts
+- Added new Account Type Distribution pie chart showing tier breakdown
+- Updated chart layout to 3-column horizontal row
+
 ## [0.9.0] - 2026-04-06
 
 ### Fixed
