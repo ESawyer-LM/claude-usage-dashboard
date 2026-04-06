@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.2a] - 2026-04-06
+
+### Fixed
+- Pie charts in report builder now render in a horizontal row instead of a vertical column
+- PDF pie charts now render as circles instead of squashed ellipses
+
 ## [0.9.2] - 2026-04-06
 
 ### Changed
