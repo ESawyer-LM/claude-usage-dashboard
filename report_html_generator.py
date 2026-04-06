@@ -284,7 +284,7 @@ def _render_status_pie(data, comp, idx):
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
     canvas_id = f"statusPie_{idx}"
     return f"""
-    <div class="chart-card" style="max-width:400px;">
+    <div class="chart-card">
         <h3>Member Status</h3>
         <canvas id="{canvas_id}"></canvas>
     </div>""", f"""
@@ -309,7 +309,7 @@ def _render_role_pie(data, comp, idx):
     users = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
     canvas_id = f"rolePie_{idx}"
     return f"""
-    <div class="chart-card" style="max-width:400px;">
+    <div class="chart-card">
         <h3>Role Distribution</h3>
         <canvas id="{canvas_id}"></canvas>
     </div>""", f"""
@@ -333,7 +333,7 @@ def _render_tier_pie(data, comp, idx):
     canvas_id = f"tierPie_{idx}"
     colors = ['#C8102E', '#2563eb', '#6b7280']
     return f"""
-    <div class="chart-card" style="max-width:400px;">
+    <div class="chart-card">
         <h3>Account Type Distribution</h3>
         <canvas id="{canvas_id}"></canvas>
     </div>""", f"""
@@ -815,8 +815,18 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         except ValueError:
             date_display = f"{global_start} \u2013 {global_end}"
 
+    _PIE_KEYS = {"status_pie", "status_donut", "role_pie", "role_donut", "tier_pie"}
+
     body_parts = []
     chart_scripts = []
+    pie_buf = []  # buffer for consecutive pie chart HTML
+
+    def _flush_pie_buf():
+        """Wrap buffered pie cards in a grid row."""
+        if not pie_buf:
+            return
+        body_parts.append(f'<div class="pie-row">{"".join(pie_buf)}</div>')
+        pie_buf.clear()
 
     for idx, comp in enumerate(components):
         key = comp.get("key")
@@ -867,12 +877,22 @@ def generate_report_html(data: dict, report_config: dict) -> str:
 
         if result is None:
             continue
+        is_pie = key in _PIE_KEYS
+        if not is_pie:
+            _flush_pie_buf()
         if isinstance(result, tuple):
-            body_parts.append(result[0])
+            if is_pie:
+                pie_buf.append(result[0])
+            else:
+                body_parts.append(result[0])
             chart_scripts.append(result[1])
         else:
-            body_parts.append(result)
+            if is_pie:
+                pie_buf.append(result)
+            else:
+                body_parts.append(result)
 
+    _flush_pie_buf()
     body_html = "\n".join(body_parts)
     scripts_html = "\n".join(chart_scripts)
 
@@ -921,10 +941,15 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             display: grid; grid-template-columns: repeat(2, 1fr);
             gap: 16px; margin-bottom: 20px;
         }}
+        .pie-row {{
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-bottom: 20px;
+        }}
         .chart-card {{
             background: #ffffff; border-radius: 12px; padding: 20px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
         }}
+        .pie-row .chart-card {{ margin-bottom: 0; }}
         .chart-card h3 {{
             font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;
         }}
@@ -947,6 +972,7 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         @media (max-width: 768px) {{
             .stats-row {{ grid-template-columns: repeat(2, 1fr); }}
             .charts-row-2 {{ grid-template-columns: 1fr; }}
+            .pie-row {{ grid-template-columns: 1fr; }}
             .header {{ flex-direction: column; gap: 12px; text-align: center; }}
         }}
     </style>
