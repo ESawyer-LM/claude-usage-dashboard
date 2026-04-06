@@ -2,7 +2,16 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
-## [0.8.1] - 2026-04-06
+## [0.8.3] - 2026-04-06
+
+### Added
+- Relative date ranges for scheduled reports (rolling window: last N days)
+- Three date range modes: All available data, Rolling window, Fixed dates
+- Per-component date range overrides support all three modes
+
+### Changed
+- Report builder schedule simplified to enable/disable toggle only; schedule details configured on Dashboard
+- Date range UI replaced with radio button mode selector and preset day options
 
 ### Fixed
 - Custom reports now appear in email schedule Report Type dropdowns
