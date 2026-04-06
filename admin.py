@@ -54,6 +54,10 @@ def create_app(scheduler_ref=None):
     # Store scheduler reference for rescheduling
     app.config["SCHEDULER_REF"] = scheduler_ref
 
+    # Register Report Builder blueprint
+    from report_builder import reports_bp
+    app.register_blueprint(reports_bp)
+
     # Endpoints whose auto-refresh should NOT reset the inactivity timer
     _AUTO_REFRESH_PATHS = {"/api/status", "/logs"}
 
@@ -142,6 +146,13 @@ def create_app(scheduler_ref=None):
             s_copy["last_sent_fmt"] = _format_time(s.get("last_sent"), tz_str) if s.get("last_sent") else "Never"
             schedules_display.append(s_copy)
 
+        # Load custom reports for the report type dropdown
+        try:
+            import report_storage
+            custom_reports = report_storage.load_reports().get("reports", [])
+        except Exception:
+            custom_reports = []
+
         return render_template_string(
             DASHBOARD_TEMPLATE,
             settings=settings,
@@ -156,6 +167,7 @@ def create_app(scheduler_ref=None):
             smtp_pass_set=bool(settings.get("smtp_pass", "")),
             report_types=config.REPORT_TYPES,
             default_report_type=config.DEFAULT_REPORT_TYPE,
+            custom_reports=custom_reports,
         )
 
     @app.route("/logs")
@@ -285,9 +297,9 @@ def create_app(scheduler_ref=None):
             if not _email_re.match(email):
                 return None, f"Invalid email: {email}"
 
-        # Report type
+        # Report type — standard types or custom:report_id
         report_type = form.get("report_type", config.DEFAULT_REPORT_TYPE)
-        if report_type not in config.REPORT_TYPES:
+        if report_type not in config.REPORT_TYPES and not report_type.startswith("custom:"):
             return None, f"Invalid report type: {report_type}"
 
         data = {
@@ -452,7 +464,7 @@ def create_app(scheduler_ref=None):
             return jsonify({"ok": False, "error": "Valid email address required"}), 400
 
         report_type = request.form.get("report_type", config.DEFAULT_REPORT_TYPE)
-        if report_type not in config.REPORT_TYPES:
+        if report_type not in config.REPORT_TYPES and not report_type.startswith("custom:"):
             report_type = config.DEFAULT_REPORT_TYPE
 
         # Save last test recipient for re-use
@@ -462,8 +474,23 @@ def create_app(scheduler_ref=None):
 
         def _run():
             try:
-                ok, msg = sched_module.run_test_report(recipient, report_type=report_type)
-                logger.info(f"Test report result: ok={ok}, msg={msg}")
+                if report_type.startswith("custom:"):
+                    # Custom report test send
+                    import scraper
+                    import report_storage
+                    from report_pdf_generator import generate_report_pdf
+                    custom_id = report_type.split(":", 1)[1]
+                    report_config = report_storage.get_report(custom_id)
+                    if not report_config:
+                        logger.error(f"Custom report '{custom_id}' not found for test send")
+                        return
+                    data = scraper.scrape()
+                    pdf_path = generate_report_pdf(data, report_config)
+                    emailer.send_report(pdf_path, data, [recipient], is_test=True, report_type="custom")
+                    logger.info(f"Custom test report sent to {recipient}")
+                else:
+                    ok, msg = sched_module.run_test_report(recipient, report_type=report_type)
+                    logger.info(f"Test report result: ok={ok}, msg={msg}")
             except Exception as e:
                 logger.error(f"Test report thread error: {e}")
 
@@ -672,6 +699,28 @@ _BASE_CSS = """
     .toast-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
     @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     .tz-card { background: #fafbfc; }
+    .nav-dropdown { position: relative; display: inline-block; }
+    .nav-dropdown-btn {
+        background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+        color: white; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+        cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px;
+    }
+    .nav-dropdown-btn:hover { background: rgba(255,255,255,0.25); }
+    .nav-dropdown-menu {
+        display: none; position: absolute; right: 0; top: calc(100% + 6px);
+        background: white; min-width: 180px; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18); z-index: 100; overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    .nav-dropdown.open .nav-dropdown-menu { display: block; }
+    .nav-dropdown-menu a, .nav-dropdown-menu button {
+        display: block; width: 100%; padding: 10px 16px; font-size: 13px;
+        color: #374151; text-decoration: none; text-align: left;
+        border: none; background: none; cursor: pointer; font-family: inherit;
+    }
+    .nav-dropdown-menu a:hover, .nav-dropdown-menu button:hover { background: #f3f4f6; }
+    .nav-dropdown-menu .nav-active-item { font-weight: 600; color: #C8102E; background: #fef2f2; }
+    .nav-dropdown-divider { border-top: 1px solid #f3f4f6; margin: 4px 0; }
     @media (max-width: 640px) {
         .container { padding: 12px; }
         .inline-row { flex-direction: column; }
@@ -711,12 +760,16 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <style>""" + _BASE_CSS + """</style></head><body>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
-    <div style="display:flex;gap:16px;align-items:center;">
-        <a href="/logs">View Logs</a>
-        <a href="#" onclick="document.getElementById('pwModal').style.display='flex';setTimeout(function(){document.querySelector('#pwModal input').focus()},100);return false;" title="Change Password" style="font-size:15px;">&#128274;</a>
-        <form method="POST" action="/logout" style="display:inline;">
-            <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
-        </form>
+    <div class="nav-dropdown" id="navDropdown">
+        <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
+        <div class="nav-dropdown-menu">
+            <a href="/dashboard" class="nav-active-item">Dashboard</a>
+            <a href="/reports">Reports</a>
+            <a href="/logs">Logs</a>
+            <div class="nav-dropdown-divider"></div>
+            <a href="#" onclick="document.getElementById('navDropdown').classList.remove('open');document.getElementById('pwModal').style.display='flex';setTimeout(function(){document.querySelector('#pwModal input').focus()},100);return false;">Change Password</a>
+            <form method="POST" action="/logout"><button type="submit">Logout</button></form>
+        </div>
     </div>
 </div>
 <!-- Password Change Modal -->
@@ -820,7 +873,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 </div>
                 <div class="sched-meta">
                     <span>{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
-                    <span>{{ report_types.get(s.get('report_type', default_report_type), {}).get('name', 'Full Report') }}</span>
+                    <span>{% set rt = s.get('report_type', default_report_type) %}{% if rt.startswith('custom:') %}{% set cid = rt[7:] %}{% for cr in custom_reports %}{% if cr.id == cid %}{{ cr.title }}{% endif %}{% endfor %}{% else %}{{ report_types.get(rt, {}).get('name', 'Full Report') }}{% endif %}</span>
                     <span>{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
                 </div>
             </div>
@@ -854,6 +907,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                         {% for rt_key, rt_val in report_types.items() %}
                         <option value="{{ rt_key }}" {{ 'selected' if s.get('report_type', default_report_type) == rt_key }}>{{ rt_val.name }}</option>
                         {% endfor %}
+                        {% if custom_reports %}
+                        <optgroup label="Custom Reports">
+                        {% for cr in custom_reports %}
+                        <option value="custom:{{ cr.id }}" {{ 'selected' if s.get('report_type') == 'custom:' + cr.id }}>{{ cr.title }}</option>
+                        {% endfor %}
+                        </optgroup>
+                        {% endif %}
                     </select>
                 </div>
             </div>
@@ -944,6 +1004,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                         {% for rt_key, rt_val in report_types.items() %}
                         <option value="{{ rt_key }}" {{ 'selected' if rt_key == default_report_type }}>{{ rt_val.name }}</option>
                         {% endfor %}
+                        {% if custom_reports %}
+                        <optgroup label="Custom Reports">
+                        {% for cr in custom_reports %}
+                        <option value="custom:{{ cr.id }}">{{ cr.title }}</option>
+                        {% endfor %}
+                        </optgroup>
+                        {% endif %}
                     </select>
                 </div>
             </div>
@@ -1085,6 +1152,13 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                     {% for rt_key, rt_val in report_types.items() %}
                     <option value="{{ rt_key }}" {{ 'selected' if rt_key == default_report_type }}>{{ rt_val.name }}</option>
                     {% endfor %}
+                    {% if custom_reports %}
+                    <optgroup label="Custom Reports">
+                    {% for cr in custom_reports %}
+                    <option value="custom:{{ cr.id }}">{{ cr.title }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    {% endif %}
                 </select>
             </div>
         </div>
@@ -1599,11 +1673,15 @@ LOGS_TEMPLATE = """<!DOCTYPE html>
 </style></head><body>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
-    <div style="display:flex;gap:16px;align-items:center;">
-        <a href="/dashboard">Dashboard</a>
-        <form method="POST" action="/logout" style="display:inline;">
-            <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
-        </form>
+    <div class="nav-dropdown" id="navDropdown">
+        <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
+        <div class="nav-dropdown-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/reports">Reports</a>
+            <a href="/logs" class="nav-active-item">Logs</a>
+            <div class="nav-dropdown-divider"></div>
+            <form method="POST" action="/logout"><button type="submit">Logout</button></form>
+        </div>
     </div>
 </div>
 <div class="container">

@@ -24,6 +24,7 @@ _scheduler: BlockingScheduler | None = None
 
 # Prefix used for all schedule-related APScheduler job IDs
 _JOB_PREFIX = "schedule_"
+_REPORT_JOB_PREFIX = "report_"
 
 
 # ---------------------------------------------------------------------------
@@ -115,26 +116,54 @@ def run_report_job(schedule_id: str, force: bool = False):
 
     report_type = schedule.get("report_type", config.DEFAULT_REPORT_TYPE)
 
+    # Check if this is a custom report (report_type starts with "custom:")
+    is_custom = report_type.startswith("custom:")
+
     try:
         # 1. Scrape data
         logger.info("Step 1/4: Scraping data...")
         data = scraper.scrape()
 
-        # 2. Generate HTML
-        logger.info("Step 2/4: Generating HTML dashboard...")
-        html_generator.save_html(data, report_type=report_type)
+        if is_custom:
+            # Custom report pipeline
+            custom_report_id = report_type.split(":", 1)[1]
+            import report_storage
+            from report_pdf_generator import generate_report_pdf
 
-        # 3. Generate PDF
-        logger.info("Step 3/4: Generating PDF report...")
-        pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
+            report_config = report_storage.get_report(custom_report_id)
+            if not report_config:
+                logger.error(f"Custom report '{custom_report_id}' not found")
+                return
 
-        # 4. Email
-        if recipients:
-            logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
-            emailer.send_report(pdf_path, data, recipients, report_type=report_type)
-            logger.info(f"Report emailed to {recipients}")
+            logger.info(f"Step 2/4: Generating custom report '{report_config.get('title')}'...")
+            # Skip HTML for custom reports (no standard HTML to save)
+
+            logger.info("Step 3/4: Generating PDF report...")
+            pdf_path = generate_report_pdf(data, report_config)
+
+            if recipients:
+                logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
+                emailer.send_report(pdf_path, data, recipients, report_type="custom")
+                logger.info(f"Custom report emailed to {recipients}")
+            else:
+                logger.info("Step 4/4: Skipped (no recipients)")
         else:
-            logger.info("Step 4/4: Skipped (no recipients)")
+            # Standard report pipeline
+            # 2. Generate HTML
+            logger.info("Step 2/4: Generating HTML dashboard...")
+            html_generator.save_html(data, report_type=report_type)
+
+            # 3. Generate PDF
+            logger.info("Step 3/4: Generating PDF report...")
+            pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
+
+            # 4. Email
+            if recipients:
+                logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
+                emailer.send_report(pdf_path, data, recipients, report_type=report_type)
+                logger.info(f"Report emailed to {recipients}")
+            else:
+                logger.info("Step 4/4: Skipped (no recipients)")
 
         # Update last run status (global)
         now_iso = datetime.now().isoformat()
@@ -215,6 +244,13 @@ def create_scheduler() -> BlockingScheduler:
             logger.error(f"Failed to create job for schedule '{schedule['id']}': {e}")
 
     _scheduler = sched
+
+    # Also register custom report schedules
+    try:
+        sync_report_jobs()
+    except Exception as e:
+        logger.error(f"Failed to sync report jobs at startup: {e}")
+
     return sched
 
 
@@ -260,6 +296,105 @@ def sync_jobs(settings: dict = None):
 
 # Keep reschedule() as an alias for backward compat with admin.py
 reschedule = sync_jobs
+
+
+# ---------------------------------------------------------------------------
+# Custom report scheduling
+# ---------------------------------------------------------------------------
+def sync_report_jobs():
+    """Sync APScheduler jobs for custom reports with enabled schedules."""
+    global _scheduler
+    if _scheduler is None:
+        logger.warning("Cannot sync report jobs: scheduler not initialized")
+        return
+
+    import report_storage
+
+    # Remove existing report jobs
+    for job in _scheduler.get_jobs():
+        if job.id.startswith(_REPORT_JOB_PREFIX):
+            _scheduler.remove_job(job.id)
+
+    # Load reports and add jobs for enabled schedules
+    data = report_storage.load_reports()
+    settings = config.load_settings()
+    tz_str = settings.get("timezone", "America/Chicago")
+    count = 0
+
+    for report in data.get("reports", []):
+        schedule = report.get("schedule", {})
+        if not schedule.get("enabled"):
+            continue
+        cron = schedule.get("cron", {})
+        try:
+            trigger = CronTrigger(
+                day_of_week=cron.get("day_of_week", "fri"),
+                hour=cron.get("hour", 8),
+                minute=cron.get("minute", 0),
+                timezone=tz_str,
+            )
+            _scheduler.add_job(
+                run_custom_report_job,
+                trigger,
+                id=f"{_REPORT_JOB_PREFIX}{report['id']}",
+                kwargs={"report_id": report["id"]},
+                replace_existing=True,
+                name=f"Report: {report.get('title', 'Untitled')}",
+            )
+            count += 1
+        except Exception as e:
+            logger.error(f"Failed to schedule report '{report.get('title')}': {e}")
+
+    logger.info(f"Synced {count} custom report schedule(s)")
+
+
+def run_custom_report_job(report_id: str):
+    """Run a custom report: scrape -> generate PDF -> email."""
+    import report_storage
+    from report_pdf_generator import generate_report_pdf
+
+    report = report_storage.get_report(report_id)
+    if not report:
+        logger.error(f"Custom report job: report {report_id} not found")
+        return
+
+    schedule = report.get("schedule", {})
+    recipients = schedule.get("recipients", [])
+    if not recipients:
+        logger.warning(f"Custom report '{report.get('title')}': no recipients, skipping")
+        return
+
+    logger.info(f"Running custom report '{report.get('title')}'...")
+
+    # Scrape fresh data, fall back to cache
+    try:
+        data = scraper.scrape()
+    except Exception as e:
+        logger.warning(f"Scrape failed for custom report, using cache: {e}")
+        import json
+        import os
+        if os.path.exists(config.CACHE_FILE):
+            with open(config.CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["from_cache"] = True
+            data["cache_reason"] = "Scrape failed during scheduled report"
+        else:
+            logger.error("No cached data available for custom report")
+            return
+
+    # Generate PDF
+    try:
+        pdf_path = generate_report_pdf(data, report)
+    except Exception as e:
+        logger.error(f"PDF generation failed for custom report: {e}")
+        return
+
+    # Email
+    try:
+        emailer.send_report(pdf_path, data, recipients, report_type="custom")
+        logger.info(f"Custom report '{report.get('title')}' sent to {len(recipients)} recipient(s)")
+    except Exception as e:
+        logger.error(f"Email failed for custom report: {e}\n{traceback.format_exc()}")
 
 
 def get_next_run_times() -> dict:

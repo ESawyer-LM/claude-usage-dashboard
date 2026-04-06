@@ -2,6 +2,23 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.8.0] - 2026-04-06
+
+### Added
+- Report Builder feature: design, save, edit, clone, and delete custom reports built from individual dashboard components
+- New Report Manager page (`/reports`) with card grid of saved reports and template dropdown
+- Interactive Report Builder page with two-column layout: component palette with checkboxes and drag-and-drop reorderable canvas
+- 12 available report components: stats row, status donut, role donut, daily chats, WAU trend, WAU stats tile, top users by projects/artifacts, Claude Code stats, member directory, executive summary, email highlights
+- 4 built-in templates: Executive Summary, Full Dashboard, Activity Deep Dive, Team Overview
+- HTML preview generation opens in new browser tab with full branding and Chart.js charts
+- PDF export using existing ReportLab Flowables (HeaderBanner, StatCardRow, etc.)
+- Auto-generated deterministic executive summary (3-5 sentences from data)
+- Global and per-component date range filtering
+- Report scheduling via APScheduler with configurable cron, timezone, and recipients
+- Clone reports and create from templates
+- "Reports" link added to nav bar on all admin pages
+- New files: `report_storage.py`, `report_html_generator.py`, `report_pdf_generator.py`, `report_builder.py`
+
 ## [0.7.5] - 2026-04-05
 
 ### Added
