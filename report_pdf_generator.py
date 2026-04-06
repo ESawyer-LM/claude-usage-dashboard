@@ -614,6 +614,25 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
         story.append(Paragraph(date_text, date_style))
         story.append(Spacer(1, 10))
 
+    _PIE_KEYS = {"status_pie", "status_donut", "role_pie", "role_donut", "tier_pie"}
+    pie_buf = []  # buffer for consecutive pie flowables
+
+    def _flush_pie_buf():
+        """Arrange buffered pie charts side-by-side in a table row."""
+        if not pie_buf:
+            return
+        col_width = USABLE_WIDTH / len(pie_buf)
+        row = [KeepTogether(fs) for fs in pie_buf]
+        t = Table([row], colWidths=[col_width] * len(pie_buf))
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 10))
+        pie_buf.clear()
+
     # --- Render each component ---
     for comp in components:
         key = comp.get("key")
@@ -631,7 +650,13 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
             comp_data = filter_data_by_range(data, global_start, global_end)
 
         flowables = renderer(comp_data, components)
-        story.extend(flowables)
+        if key in _PIE_KEYS:
+            pie_buf.append(flowables)
+        else:
+            _flush_pie_buf()
+            story.extend(flowables)
+
+    _flush_pie_buf()
 
     # Build PDF
     NumberedCanvas = _make_numbered_canvas_factory(today_str)

@@ -957,6 +957,7 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;
         }}
         .chart-card canvas {{ height: 220px !important; }}
+        .pie-row .chart-card canvas {{ height: 180px !important; }}
         .table-card {{
             background: #ffffff; border-radius: 12px; padding: 20px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
