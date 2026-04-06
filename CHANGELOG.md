@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.8.5] - 2026-04-06
+
+### Added
+- Warning when deleting a report that has linked email schedules
+- Linked schedules are automatically deleted with the report
+
 ## [0.8.4] - 2026-04-06
 
 ### Fixed
