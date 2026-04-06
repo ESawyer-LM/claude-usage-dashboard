@@ -622,8 +622,8 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
         if not pie_buf:
             return
         col_width = USABLE_WIDTH / len(pie_buf)
-        row = [KeepTogether(fs) for fs in pie_buf]
-        t = Table([row], colWidths=[col_width] * len(pie_buf))
+        # Each entry in pie_buf is a list of flowables — pass as-is for Table cells
+        t = Table([pie_buf], colWidths=[col_width] * len(pie_buf))
         t.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 2),
