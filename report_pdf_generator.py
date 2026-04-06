@@ -85,7 +85,7 @@ def _pdf_status_pie(data):
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
 
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(3.5, 3.5))
     fig.patch.set_facecolor("white")
     sizes = [active_count, pending_count]
     clrs = ["#16a34a", "#d97706"]
@@ -101,7 +101,7 @@ def _pdf_status_pie(data):
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
     ax.set_title("Member Status Breakdown", fontsize=11, fontweight="bold", pad=10)
     fig.tight_layout()
-    img = _fig_to_image(fig, USABLE_WIDTH * 0.5, 2.2 * inch)
+    img = _fig_to_image(fig, USABLE_WIDTH * 0.33, 2.2 * inch)
     return [img, Spacer(1, 10)]
 
 
@@ -112,7 +112,7 @@ def _pdf_role_pie(data):
     users = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
 
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(3.5, 3.5))
     fig.patch.set_facecolor("white")
     sizes = [owners, users]
     clrs = ["#C8102E", "#6b7280"]
@@ -128,7 +128,7 @@ def _pdf_role_pie(data):
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
     ax.set_title("Role Distribution", fontsize=11, fontweight="bold", pad=10)
     fig.tight_layout()
-    img = _fig_to_image(fig, USABLE_WIDTH * 0.5, 2.2 * inch)
+    img = _fig_to_image(fig, USABLE_WIDTH * 0.33, 2.2 * inch)
     return [img, Spacer(1, 10)]
 
 
@@ -137,7 +137,7 @@ def _pdf_tier_pie(data):
     tier_counts = Counter(m.get("tier", "Standard") for m in members)
 
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(3.5, 3.5))
     fig.patch.set_facecolor("white")
     sizes = list(tier_counts.values())
     labels = list(tier_counts.keys())
@@ -153,7 +153,7 @@ def _pdf_tier_pie(data):
         ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
     ax.set_title("Account Type Distribution", fontsize=11, fontweight="bold", pad=10)
     fig.tight_layout()
-    img = _fig_to_image(fig, USABLE_WIDTH * 0.5, 2.2 * inch)
+    img = _fig_to_image(fig, USABLE_WIDTH * 0.33, 2.2 * inch)
     return [img, Spacer(1, 10)]
 
 
