@@ -2,6 +2,13 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.5] - 2026-04-06
+
+### Fixed
+- Pie charts in HTML now use dedicated pie-row class with reduced height to prevent oversized charts
+- Restored 2-column grid for activity chart sections that was broken by pie chart changes
+- PDF pie charts now render side-by-side in a horizontal row instead of vertically stacked
+
 ## [0.9.4] - 2026-04-06
 
 ### Fixed
