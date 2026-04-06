@@ -116,26 +116,54 @@ def run_report_job(schedule_id: str, force: bool = False):
 
     report_type = schedule.get("report_type", config.DEFAULT_REPORT_TYPE)
 
+    # Check if this is a custom report (report_type starts with "custom:")
+    is_custom = report_type.startswith("custom:")
+
     try:
         # 1. Scrape data
         logger.info("Step 1/4: Scraping data...")
         data = scraper.scrape()
 
-        # 2. Generate HTML
-        logger.info("Step 2/4: Generating HTML dashboard...")
-        html_generator.save_html(data, report_type=report_type)
+        if is_custom:
+            # Custom report pipeline
+            custom_report_id = report_type.split(":", 1)[1]
+            import report_storage
+            from report_pdf_generator import generate_report_pdf
 
-        # 3. Generate PDF
-        logger.info("Step 3/4: Generating PDF report...")
-        pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
+            report_config = report_storage.get_report(custom_report_id)
+            if not report_config:
+                logger.error(f"Custom report '{custom_report_id}' not found")
+                return
 
-        # 4. Email
-        if recipients:
-            logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
-            emailer.send_report(pdf_path, data, recipients, report_type=report_type)
-            logger.info(f"Report emailed to {recipients}")
+            logger.info(f"Step 2/4: Generating custom report '{report_config.get('title')}'...")
+            # Skip HTML for custom reports (no standard HTML to save)
+
+            logger.info("Step 3/4: Generating PDF report...")
+            pdf_path = generate_report_pdf(data, report_config)
+
+            if recipients:
+                logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
+                emailer.send_report(pdf_path, data, recipients, report_type="custom")
+                logger.info(f"Custom report emailed to {recipients}")
+            else:
+                logger.info("Step 4/4: Skipped (no recipients)")
         else:
-            logger.info("Step 4/4: Skipped (no recipients)")
+            # Standard report pipeline
+            # 2. Generate HTML
+            logger.info("Step 2/4: Generating HTML dashboard...")
+            html_generator.save_html(data, report_type=report_type)
+
+            # 3. Generate PDF
+            logger.info("Step 3/4: Generating PDF report...")
+            pdf_path = pdf_generator.generate_pdf(data, report_type=report_type)
+
+            # 4. Email
+            if recipients:
+                logger.info(f"Step 4/4: Sending email to {len(recipients)} recipients...")
+                emailer.send_report(pdf_path, data, recipients, report_type=report_type)
+                logger.info(f"Report emailed to {recipients}")
+            else:
+                logger.info("Step 4/4: Skipped (no recipients)")
 
         # Update last run status (global)
         now_iso = datetime.now().isoformat()

@@ -401,17 +401,40 @@ REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
     .sched-badge-off { background: #f3f4f6; color: #6b7280; }
     .empty-state { text-align: center; padding: 48px 20px; color: #6b7280; }
     .empty-state h3 { font-size: 18px; color: #374151; margin-bottom: 8px; }
-    .nav-active { opacity: 1 !important; font-weight: 600; border-bottom: 2px solid white; padding-bottom: 2px; }
+    .nav-dropdown { position: relative; display: inline-block; }
+    .nav-dropdown-btn {
+        background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+        color: white; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+        cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px;
+    }
+    .nav-dropdown-btn:hover { background: rgba(255,255,255,0.25); }
+    .nav-dropdown-menu {
+        display: none; position: absolute; right: 0; top: calc(100% + 6px);
+        background: white; min-width: 180px; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18); z-index: 100; overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    .nav-dropdown.open .nav-dropdown-menu { display: block; }
+    .nav-dropdown-menu a, .nav-dropdown-menu button {
+        display: block; width: 100%; padding: 10px 16px; font-size: 13px;
+        color: #374151; text-decoration: none; text-align: left;
+        border: none; background: none; cursor: pointer; font-family: inherit;
+    }
+    .nav-dropdown-menu a:hover, .nav-dropdown-menu button:hover { background: #f3f4f6; }
+    .nav-dropdown-menu .nav-active-item { font-weight: 600; color: #C8102E; background: #fef2f2; }
+    .nav-dropdown-divider { border-top: 1px solid #f3f4f6; margin: 4px 0; }
 </style></head><body>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
-    <div style="display:flex;gap:16px;align-items:center;">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/reports" class="nav-active">Reports</a>
-        <a href="/logs">Logs</a>
-        <form method="POST" action="/logout" style="display:inline;">
-            <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
-        </form>
+    <div class="nav-dropdown" id="navDropdown">
+        <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
+        <div class="nav-dropdown-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/reports" class="nav-active-item">Reports</a>
+            <a href="/logs">Logs</a>
+            <div class="nav-dropdown-divider"></div>
+            <form method="POST" action="/logout"><button type="submit">Logout</button></form>
+        </div>
     </div>
 </div>
 <div class="toast-container" id="toastContainer"></div>
@@ -560,17 +583,40 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
     .schedule-fields { display: none; }
     .schedule-fields.visible { display: block; }
     .bottom-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
-    .nav-active { opacity: 1 !important; font-weight: 600; border-bottom: 2px solid white; padding-bottom: 2px; }
+    .nav-dropdown { position: relative; display: inline-block; }
+    .nav-dropdown-btn {
+        background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+        color: white; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+        cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px;
+    }
+    .nav-dropdown-btn:hover { background: rgba(255,255,255,0.25); }
+    .nav-dropdown-menu {
+        display: none; position: absolute; right: 0; top: calc(100% + 6px);
+        background: white; min-width: 180px; border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18); z-index: 100; overflow: hidden;
+        border: 1px solid #e5e7eb;
+    }
+    .nav-dropdown.open .nav-dropdown-menu { display: block; }
+    .nav-dropdown-menu a, .nav-dropdown-menu button {
+        display: block; width: 100%; padding: 10px 16px; font-size: 13px;
+        color: #374151; text-decoration: none; text-align: left;
+        border: none; background: none; cursor: pointer; font-family: inherit;
+    }
+    .nav-dropdown-menu a:hover, .nav-dropdown-menu button:hover { background: #f3f4f6; }
+    .nav-dropdown-menu .nav-active-item { font-weight: 600; color: #C8102E; background: #fef2f2; }
+    .nav-dropdown-divider { border-top: 1px solid #f3f4f6; margin: 4px 0; }
 </style></head><body>
 <div class="navbar">
     <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
-    <div style="display:flex;gap:16px;align-items:center;">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/reports" class="nav-active">Reports</a>
-        <a href="/logs">Logs</a>
-        <form method="POST" action="/logout" style="display:inline;">
-            <button type="submit" style="background:none;border:none;color:white;cursor:pointer;font-size:13px;opacity:0.9;">Logout</button>
-        </form>
+    <div class="nav-dropdown" id="navDropdown">
+        <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
+        <div class="nav-dropdown-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/reports" class="nav-active-item">Reports</a>
+            <a href="/logs">Logs</a>
+            <div class="nav-dropdown-divider"></div>
+            <form method="POST" action="/logout"><button type="submit">Logout</button></form>
+        </div>
     </div>
 </div>
 <div class="toast-container" id="toastContainer"></div>
