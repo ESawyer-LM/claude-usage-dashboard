@@ -192,12 +192,15 @@ def create_app(scheduler_ref=None):
     def api_save_cookie():
         cookie = request.form.get("session_cookie", "").strip()
         org_id = request.form.get("org_id", "").strip()
+        org_display_name = request.form.get("org_display_name", "").strip()
         settings = config.load_settings()
         if cookie:
             settings["session_cookie"] = cookie
         if org_id:
             settings["org_id"] = org_id
-        if not cookie and not org_id:
+        # Always save org_display_name (even if blank, to allow clearing it)
+        settings["org_display_name"] = org_display_name
+        if not cookie and not org_id and not org_display_name:
             return jsonify({"ok": False, "error": "Provide at least one value"}), 400
         config.save_settings(settings)
         logger.info("Connection settings updated via admin UI")
@@ -206,7 +209,9 @@ def create_app(scheduler_ref=None):
             parts.append("sessionKey")
         if org_id:
             parts.append("org ID")
-        return jsonify({"ok": True, "message": f"Saved: {', '.join(parts)}"})
+        if org_display_name:
+            parts.append("display name")
+        return jsonify({"ok": True, "message": f"Saved: {', '.join(parts) or 'settings'}"})
 
     @app.route("/api/save-smtp", methods=["POST"])
     @login_required
@@ -1087,6 +1092,11 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     {% endif %}
     <form id="cookieForm">
         <div class="form-group">
+            <label>Organization Display Name</label>
+            <input type="text" name="org_display_name" value="{{ settings.get('org_display_name', '') }}" placeholder="Your Company Name" maxlength="100">
+            <div class="hint">Shown in report headers, footers, and email subjects. Leave blank for default.</div>
+        </div>
+        <div class="form-group">
             <label>Organization ID <span style="color:#C8102E;">*</span></label>
             <input type="text" name="org_id" value="{{ settings.get('org_id', '') }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:monospace;">
             <div class="hint">DevTools (F12) → Network → filter "members" → copy the UUID from the URL path.</div>
@@ -1110,7 +1120,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <div class="inline-row">
             <div class="form-group" style="flex:3;">
                 <label>SMTP Host</label>
-                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}">
+                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}" placeholder="smtp.example.com">
             </div>
             <div class="form-group" style="flex:1;">
                 <label>Port</label>
@@ -1120,7 +1130,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="form-group">
             <label>SMTP Username</label>
-            <input type="text" name="smtp_user" value="{{ settings.smtp_user }}">
+            <input type="text" name="smtp_user" value="{{ settings.smtp_user }}" placeholder="user@example.com">
         </div>
         <div class="form-group">
             <label>SMTP Password</label>
@@ -1148,7 +1158,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
         <div class="inline-row">
             <div class="form-group" style="flex:2;">
                 <label>Test Recipient Email</label>
-                <input type="email" name="test_email" value="{{ settings.get('last_test_recipient', '') or settings.smtp_user }}" required>
+                <input type="email" name="test_email" value="{{ settings.get('last_test_recipient', '') or settings.smtp_user }}" placeholder="recipient@example.com" required>
             </div>
             <div class="form-group" style="flex:1;">
                 <label>Report Type</label>

@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.8.6"
+VERSION = "0.8.7"
 
 import json
 import logging
@@ -49,10 +49,11 @@ FLASK_SECRET_FILE = os.path.join(OUTPUT_DIR, ".flask_secret")
 # ---------------------------------------------------------------------------
 DEFAULT_SETTINGS = {
     "org_id": "",
+    "org_display_name": "",  # shown in report headers/footers; blank = "Claude Usage Dashboard"
     "session_cookie": "",
-    "smtp_host": "smtp.office365.com",
+    "smtp_host": "",
     "smtp_port": 587,
-    "smtp_user": "esawyer@loumalnatis.com",
+    "smtp_user": "",
     "smtp_pass": "",  # stored Fernet-encrypted
     "smtp_from_name": "Claude Dashboard",
     "schedules": [],

@@ -558,9 +558,11 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
     global_start, global_end = resolve_date_range(global_range_config)
 
     # --- Header Banner with report title as subtitle ---
+    _rpt_settings = config.load_settings()
+    _rpt_org = _rpt_settings.get("org_display_name") or "Claude Usage Dashboard"
     story.append(HeaderBanner(
         "Claude Usage Dashboard",
-        f"{title} \u00b7 Lou Malnati\u2019s Pizzeria",
+        f"{title} \u00b7 {_rpt_org}",
         today_str,
     ))
     story.append(Spacer(1, 10))

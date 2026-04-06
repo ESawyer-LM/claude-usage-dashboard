@@ -186,7 +186,7 @@ def generate_executive_summary(data: dict, components: list, date_range: dict = 
     if total_seats > 0:
         util_pct = (active_count / total_seats) * 100
         sentences.append(
-            f"Lou Malnati's has {active_count} of {total_seats} seats active ({util_pct:.0f}% utilization)."
+            f"The organization has {active_count} of {total_seats} seats active ({util_pct:.0f}% utilization)."
         )
 
     # Chat activity
@@ -776,6 +776,10 @@ def generate_report_html(data: dict, report_config: dict) -> str:
 
     today_str = datetime.now().strftime("%B %-d, %Y") if os.name != "nt" else datetime.now().strftime("%B %d, %Y")
 
+    # Organization display name
+    _settings = config.load_settings()
+    org_name = _settings.get("org_display_name") or "Claude Usage Dashboard"
+
     # Resolve global date range (handles relative/absolute/all modes)
     global_start, global_end = resolve_date_range(global_range_config)
 
@@ -929,7 +933,7 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             <div class="logo-badge">LM</div>
             <div>
                 <div class="header-title">Claude Usage Dashboard</div>
-                <div class="header-subtitle">Lou Malnati's Pizzeria</div>
+                <div class="header-subtitle">{_escape(org_name)}</div>
                 <div class="header-report-title">{title}</div>
             </div>
         </div>
@@ -941,7 +945,7 @@ def generate_report_html(data: dict, report_config: dict) -> str:
 
         <div class="footer">
             Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot;
-            Lou Malnati's Pizzeria &middot; {_escape(today_str)} &middot; v{config.VERSION}
+            {_escape(org_name)} &middot; {_escape(today_str)} &middot; v{config.VERSION}
         </div>
     </div>
 
