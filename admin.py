@@ -146,11 +146,14 @@ def create_app(scheduler_ref=None):
             s_copy["last_sent_fmt"] = _format_time(s.get("last_sent"), tz_str) if s.get("last_sent") else "Never"
             schedules_display.append(s_copy)
 
-        # Load custom reports for the report type dropdown
+        # Load custom reports for the report type dropdown (only those enabled for scheduling)
+        # Keep all_custom_reports for display labels on existing schedules
         try:
             import report_storage
-            custom_reports = report_storage.load_reports().get("reports", [])
+            all_custom_reports = report_storage.load_reports().get("reports", [])
+            custom_reports = [r for r in all_custom_reports if r.get("schedule", {}).get("enabled")]
         except Exception:
+            all_custom_reports = []
             custom_reports = []
 
         return render_template_string(
@@ -168,6 +171,7 @@ def create_app(scheduler_ref=None):
             report_types=config.REPORT_TYPES,
             default_report_type=config.DEFAULT_REPORT_TYPE,
             custom_reports=custom_reports,
+            all_custom_reports=all_custom_reports,
         )
 
     @app.route("/logs")
@@ -873,7 +877,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
                 </div>
                 <div class="sched-meta">
                     <span>{% if s.recurrence_type == 'weekly' %}{{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'biweekly' %}Every other {{ s.get('days_of_week', []) | join(', ') | title }}{% elif s.recurrence_type == 'monthly' %}Monthly (day {{ s.get('month_day', 1) }}){% else %}{{ s.recurrence_type | replace('_', ' ') | title }}{% endif %} at {{ '%02d' | format(s.time.hour) }}:{{ '%02d' | format(s.time.minute) }}</span>
-                    <span>{% set rt = s.get('report_type', default_report_type) %}{% if rt.startswith('custom:') %}{% set cid = rt[7:] %}{% for cr in custom_reports %}{% if cr.id == cid %}{{ cr.title }}{% endif %}{% endfor %}{% else %}{{ report_types.get(rt, {}).get('name', 'Full Report') }}{% endif %}</span>
+                    <span>{% set rt = s.get('report_type', default_report_type) %}{% if rt.startswith('custom:') %}{% set cid = rt[7:] %}{% for cr in all_custom_reports %}{% if cr.id == cid %}{{ cr.title }}{% endif %}{% endfor %}{% else %}{{ report_types.get(rt, {}).get('name', 'Full Report') }}{% endif %}</span>
                     <span>{{ s.recipients | length }} recipient{{ 's' if s.recipients | length != 1 }}</span>
                 </div>
             </div>
