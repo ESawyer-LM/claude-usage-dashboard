@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.4] - 2026-04-06
+
+### Fixed
+- Account Type Distribution pie chart now correctly reads seat_tier field to show Premium vs Standard members
+
 ## [0.9.3] - 2026-04-06
 
 ### Changed
