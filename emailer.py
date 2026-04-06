@@ -31,7 +31,7 @@ def send_report(
     rt_name = config.REPORT_TYPES.get(report_type, {}).get("name", "Report")
 
     settings = config.load_settings()
-    smtp_host = settings.get("smtp_host", "smtp.office365.com")
+    smtp_host = settings.get("smtp_host", "")
     smtp_port = int(settings.get("smtp_port", 587))
     smtp_user = settings.get("smtp_user", "")
     smtp_pass_encrypted = settings.get("smtp_pass", "")
@@ -47,7 +47,7 @@ def send_report(
 
     # Build the email
     today_str = datetime.now().strftime("%A, %B %d, %Y")
-    subject = f"Claude Usage Dashboard ({rt_name}) \u2014 Lou Malnati's \u2014 {today_str}"
+    subject = f"Claude Usage Dashboard ({rt_name}) \u2014 {smtp_from_name} \u2014 {today_str}"
     if is_test:
         subject = f"[TEST] {subject}"
 
@@ -151,7 +151,7 @@ def test_smtp_connection() -> tuple[bool, str]:
     Returns (success: bool, message: str).
     """
     settings = config.load_settings()
-    smtp_host = settings.get("smtp_host", "smtp.office365.com")
+    smtp_host = settings.get("smtp_host", "")
     smtp_port = int(settings.get("smtp_port", 587))
     smtp_user = settings.get("smtp_user", "")
     smtp_pass_encrypted = settings.get("smtp_pass", "")

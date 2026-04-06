@@ -56,8 +56,11 @@ USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN
 # ---------------------------------------------------------------------------
 # Page-level drawing helpers
 # ---------------------------------------------------------------------------
-def _make_numbered_canvas_factory(date_str):
+def _make_numbered_canvas_factory(date_str, org_name=None):
     """Return a NumberedCanvas class that captures the report date string."""
+    if not org_name:
+        _s = config.load_settings()
+        org_name = _s.get("org_display_name") or "Claude Usage Dashboard"
 
     class NumberedCanvas(canvas.Canvas):
         """Custom canvas: draws light-grey background + 'Page X of Y' footer."""
@@ -99,7 +102,7 @@ def _make_numbered_canvas_factory(date_str):
                 f"Page {page_num} of {total_pages}  \u00b7  "
                 f"Data sourced from Claude.ai Admin Console  \u00b7  "
                 f"As of {date_str}  \u00b7  "
-                f"Lou Malnati\u2019s Pizzeria  \u00b7  v{config.VERSION}"
+                f"{org_name}  \u00b7  v{config.VERSION}"
             )
             self.saveState()
             self.setFont("Helvetica", 7)
@@ -729,9 +732,11 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
     story = []
 
     # --- Header Banner ---
+    _pdf_settings = config.load_settings()
+    _org_name = _pdf_settings.get("org_display_name") or "Claude Usage Dashboard"
     story.append(HeaderBanner(
         "Claude Usage Dashboard",
-        f"Lou Malnati\u2019s Pizzeria \u00b7 {plan_tier} Plan",
+        f"{_org_name} \u00b7 {plan_tier} Plan",
         today_str,
     ))
     story.append(Spacer(1, 14))

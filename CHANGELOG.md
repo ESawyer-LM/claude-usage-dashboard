@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.8.7] - 2026-04-06
+
+### Changed
+- Removed all hardcoded personal/company info from defaults and report templates
+- Report headers, footers, and email subjects now use configurable "Organization Display Name" setting
+- SMTP defaults cleared (no pre-filled email or host on clean install)
+- Added "Organization Display Name" field to Claude.ai Connection settings card
+
 ## [0.8.6] - 2026-04-06
 
 ### Changed

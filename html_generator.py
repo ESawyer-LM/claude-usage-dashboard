@@ -1,6 +1,6 @@
 """
 Generates a self-contained HTML dashboard file with Chart.js charts
-and Lou Malnati's branding.
+and configurable org branding.
 """
 
 import html
@@ -86,6 +86,10 @@ def generate_html(data: dict, report_type: str = None) -> str:
     users_count = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
 
     today_str = datetime.now().strftime("%B %-d, %Y") if os.name != "nt" else datetime.now().strftime("%B %d, %Y")
+
+    # Organization display name from settings
+    _settings = config.load_settings()
+    org_name = _settings.get("org_display_name") or "Claude Usage Dashboard"
 
     # Activity overview metrics
     dau = overview.get("dau", {}).get("value", "—")
@@ -297,7 +301,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Usage Dashboard — Lou Malnati's Pizzeria</title>
+    <title>Claude Usage Dashboard — {_escape(org_name)}</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -408,7 +412,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
             <div class="logo-badge">LM</div>
             <div>
                 <div class="header-title">Claude Usage Dashboard</div>
-                <div class="header-subtitle">Lou Malnati's Pizzeria</div>
+                <div class="header-subtitle">{_escape(org_name)}</div>
             </div>
         </div>
         <div class="date-badge">As of {_escape(today_str)}</div>
@@ -580,7 +584,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         <!-- Footer -->
         <div class="footer">
-            Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; Lou Malnati's Pizzeria &middot; {_escape(today_str)} &middot; v{config.VERSION}
+            Data sourced from Claude.ai Admin Console and Claude.ai Analytics &middot; {_escape(org_name)} &middot; {_escape(today_str)} &middot; v{config.VERSION}
         </div>
     </div>
 
