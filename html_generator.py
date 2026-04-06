@@ -81,9 +81,12 @@ def generate_html(data: dict, report_type: str = None) -> str:
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
     role_counts = Counter(m.get("role", "User") for m in members)
 
-    # Role aggregation for donut chart
+    # Role aggregation for pie chart
     owners_count = sum(v for k, v in role_counts.items() if "owner" in k.lower())
     users_count = sum(v for k, v in role_counts.items() if "owner" not in k.lower())
+
+    # Tier aggregation for pie chart
+    tier_counts = Counter(m.get("tier", "Standard") for m in members)
 
     today_str = datetime.now().strftime("%B %-d, %Y") if os.name != "nt" else datetime.now().strftime("%B %d, %Y")
 
@@ -173,11 +176,13 @@ def generate_html(data: dict, report_type: str = None) -> str:
     # WAU chart data (used in activity section)
     wau_chart_data = data.get("wau_chart", {"labels": [], "data": []})
 
-    # Donut chart data
+    # Pie chart data
     status_labels_json = json.dumps(["Active", "Pending"])
     status_data_json = json.dumps([active_count, pending_count])
     role_labels_json = json.dumps(["Owners", "Users"])
     role_data_json = json.dumps([owners_count, users_count])
+    tier_labels_json = json.dumps(list(tier_counts.keys()))
+    tier_data_json = json.dumps(list(tier_counts.values()))
 
     # Stale data warning banner
     stale_banner = ""
@@ -349,7 +354,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         /* Chart Cards */
         .charts-row-2 {{
-            display: grid; grid-template-columns: repeat(2, 1fr);
+            display: grid; grid-template-columns: repeat(3, 1fr);
             gap: 16px; margin-bottom: 20px;
         }}
         .charts-row-3 {{
@@ -449,7 +454,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         {usage_stats_html}
 
-        <!-- Org Overview (2-column donut charts) -->
+        <!-- Org Overview (3-column pie charts) -->
         <div class="charts-row-2">
             <div class="chart-card">
                 <h3>Member Status</h3>
@@ -458,6 +463,10 @@ def generate_html(data: dict, report_type: str = None) -> str:
             <div class="chart-card">
                 <h3>Role Distribution</h3>
                 <canvas id="roleChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Account Type Distribution</h3>
+                <canvas id="tierChart"></canvas>
             </div>
         </div>
         '''}
@@ -592,9 +601,9 @@ def generate_html(data: dict, report_type: str = None) -> str:
         // --- Charts (conditionally initialized based on report sections) ---
 
         {"" if "overview" not in sections else f'''
-        // Member Status Donut
+        // Member Status Pie
         new Chart(document.getElementById('statusChart'), {{
-            type: 'doughnut',
+            type: 'pie',
             data: {{
                 labels: {status_labels_json},
                 datasets: [{{ data: {status_data_json}, backgroundColor: ['#16a34a', '#d97706'], borderWidth: 0 }}]
@@ -602,14 +611,13 @@ def generate_html(data: dict, report_type: str = None) -> str:
             options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{ legend: {{ position: 'bottom' }} }},
-                cutout: '65%'
+                plugins: {{ legend: {{ position: 'bottom' }} }}
             }}
         }});
 
-        // Role Distribution Donut
+        // Role Distribution Pie
         new Chart(document.getElementById('roleChart'), {{
-            type: 'doughnut',
+            type: 'pie',
             data: {{
                 labels: {role_labels_json},
                 datasets: [{{ data: {role_data_json}, backgroundColor: ['#C8102E', '#6b7280'], borderWidth: 0 }}]
@@ -617,8 +625,21 @@ def generate_html(data: dict, report_type: str = None) -> str:
             options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{ legend: {{ position: 'bottom' }} }},
-                cutout: '65%'
+                plugins: {{ legend: {{ position: 'bottom' }} }}
+            }}
+        }});
+
+        // Account Type Distribution Pie
+        new Chart(document.getElementById('tierChart'), {{
+            type: 'pie',
+            data: {{
+                labels: {tier_labels_json},
+                datasets: [{{ data: {tier_data_json}, backgroundColor: ['#C8102E', '#2563eb', '#6b7280'], borderWidth: 0 }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ position: 'bottom' }} }}
             }}
         }});
         '''}
