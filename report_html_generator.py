@@ -380,6 +380,146 @@ def _render_wau_stats_tile(data, comp, idx):
     </div>"""
 
 
+def _render_activity_metrics(data, comp, idx):
+    overview = data.get("activity_overview", {})
+    dau = overview.get("dau", {}).get("value", "\u2014")
+    wau = overview.get("wau", {}).get("value", "\u2014")
+    mau = overview.get("mau", {}).get("value", "\u2014")
+    utilization = overview.get("utilization", {}).get("value", "\u2014")
+    if isinstance(utilization, (int, float)):
+        util_str = f"{utilization:.0f}%"
+    else:
+        util_str = str(utilization)
+    stickiness = overview.get("stickiness", {})
+    stickiness_val = stickiness.get("value") if isinstance(stickiness, dict) else stickiness
+    if isinstance(stickiness_val, (int, float)):
+        stickiness_str = f"{stickiness_val:.0f}%"
+    else:
+        stickiness_str = str(stickiness_val) if stickiness_val else "\u2014"
+    dau_trend = _trend_badge(overview.get("dau", {}).get("change_percent"))
+    wau_trend = _trend_badge(overview.get("wau", {}).get("change_percent"))
+    mau_trend = _trend_badge(overview.get("mau", {}).get("change_percent"))
+    util_trend = _trend_badge(overview.get("utilization", {}).get("change_percent"))
+    stk_trend = _trend_badge(stickiness.get("change_percent") if isinstance(stickiness, dict) else None)
+    return f"""
+    <div class="stats-row" style="grid-template-columns:repeat(5,1fr);">
+        <div class="stat-card">
+            <div class="stat-label">Daily Active Users</div>
+            <div class="stat-value" style="color:#16a34a;">{dau}</div>
+            {dau_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Weekly Active Users</div>
+            <div class="stat-value" style="color:#2563eb;">{wau}</div>
+            {wau_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Monthly Active Users</div>
+            <div class="stat-value" style="color:#2563eb;">{mau}</div>
+            {mau_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Utilization</div>
+            <div class="stat-value" style="color:#d97706;">{util_str}</div>
+            {util_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Stickiness (DAU/MAU)</div>
+            <div class="stat-value" style="color:#8b5cf6;">{stickiness_str}</div>
+            {stk_trend}
+        </div>
+    </div>"""
+
+
+def _render_usage_stats(data, comp, idx):
+    usage = data.get("usage_overview", {})
+    chats_per_day = usage.get("chats_per_day", {}).get("value", "\u2014")
+    projects_created = usage.get("projects_created", {}).get("value", "\u2014")
+    artifacts_created = usage.get("artifacts_created", {}).get("value", "\u2014")
+    cpd_trend = _trend_badge(usage.get("chats_per_day", {}).get("change_percent"))
+    proj_trend = _trend_badge(usage.get("projects_created", {}).get("change_percent"))
+    art_trend = _trend_badge(usage.get("artifacts_created", {}).get("change_percent"))
+    return f"""
+    <div class="stats-row" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat-card">
+            <div class="stat-label">Avg. Chats / Day</div>
+            <div class="stat-value" style="color:#C8102E;">{chats_per_day}</div>
+            {cpd_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Projects Created (MTD)</div>
+            <div class="stat-value" style="color:#C8102E;">{projects_created}</div>
+            {proj_trend}
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Artifacts Created (MTD)</div>
+            <div class="stat-value" style="color:#C8102E;">{artifacts_created}</div>
+            {art_trend}
+        </div>
+    </div>"""
+
+
+def _render_dau_chart(data, comp, idx):
+    dau_chart = data.get("dau_chart", {"labels": [], "data": []})
+    canvas_id = f"dauChart_{idx}"
+    return f"""
+    <div class="chart-card">
+        <h3>Daily Active Users (Last 30 Days)</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'line',
+        data: {{
+            labels: {json.dumps(dau_chart.get("labels", []))},
+            datasets: [{{
+                label: 'DAU',
+                data: {json.dumps(dau_chart.get("data", []))},
+                borderColor: '#16a34a',
+                backgroundColor: 'rgba(22, 163, 74, 0.08)',
+                fill: true, tension: 0.3,
+                pointBackgroundColor: '#ffffff', pointBorderColor: '#16a34a',
+                pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                x: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
+def _render_top_users_chats(data, comp, idx):
+    top_chats = data.get("top_users_chats", [])
+    canvas_id = f"topChats_{idx}"
+    return f"""
+    <div class="chart-card">
+        <h3>Top Users by Chats MTD</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'bar',
+        data: {{
+            labels: {json.dumps([u["name"] for u in top_chats])},
+            datasets: [{{
+                label: 'Chats', data: {json.dumps([u["count"] for u in top_chats])},
+                backgroundColor: '#C8102E', borderRadius: 4, barThickness: 20
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                y: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
 def _render_top_users_projects(data, comp, idx):
     top_projects = data.get("top_users_projects", [])
     canvas_id = f"topProjects_{idx}"
@@ -628,6 +768,14 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             result = _render_wau_trend(comp_data, comp, idx)
         elif key == "wau_stats_tile":
             result = _render_wau_stats_tile(comp_data, comp, idx)
+        elif key == "activity_metrics":
+            result = _render_activity_metrics(comp_data, comp, idx)
+        elif key == "usage_stats":
+            result = _render_usage_stats(comp_data, comp, idx)
+        elif key == "dau_chart":
+            result = _render_dau_chart(comp_data, comp, idx)
+        elif key == "top_users_chats":
+            result = _render_top_users_chats(comp_data, comp, idx)
         elif key == "top_users_projects":
             result = _render_top_users_projects(comp_data, comp, idx)
         elif key == "top_users_artifacts":

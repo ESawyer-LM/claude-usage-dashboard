@@ -212,6 +212,122 @@ def _pdf_wau_stats_tile(data):
     ]
 
 
+def _pdf_activity_metrics(data):
+    overview = data.get("activity_overview", {})
+    dau_val = overview.get("dau", {}).get("value", "\u2014")
+    dau_change = overview.get("dau", {}).get("change_percent")
+    wau_val = overview.get("wau", {}).get("value", "\u2014")
+    wau_change = overview.get("wau", {}).get("change_percent")
+    mau_val = overview.get("mau", {}).get("value", "\u2014")
+    mau_change = overview.get("mau", {}).get("change_percent")
+    utilization = overview.get("utilization", {}).get("value", "\u2014")
+    utilization_change = overview.get("utilization", {}).get("change_percent")
+    if isinstance(utilization, (int, float)):
+        util_str = f"{utilization:.1f}%"
+    else:
+        util_str = str(utilization)
+    stickiness = overview.get("stickiness", {})
+    stickiness_val = stickiness.get("value") if isinstance(stickiness, dict) else stickiness
+    stickiness_change = stickiness.get("change_percent") if isinstance(stickiness, dict) else None
+    if isinstance(stickiness_val, (int, float)):
+        stickiness_str = f"{stickiness_val:.0f}%"
+    else:
+        stickiness_str = str(stickiness_val) if stickiness_val else "\u2014"
+
+    dau_sub = f"Daily active {_trend_text(dau_change)}" if dau_change is not None else "Daily active"
+    wau_sub = f"Weekly active {_trend_text(wau_change)}" if wau_change is not None else "Weekly active"
+    mau_sub = f"Monthly active {_trend_text(mau_change)}" if mau_change is not None else "Monthly active"
+    util_sub = f"Seat utilization {_trend_text(utilization_change)}" if utilization_change is not None else "Seat utilization"
+    sticky_sub = f"DAU/MAU ratio {_trend_text(stickiness_change)}" if stickiness_change is not None else "DAU/MAU ratio"
+    return [
+        StatCardRow([
+            ("DAU", str(dau_val), dau_sub, LM_GREEN),
+            ("WAU", str(wau_val), wau_sub, "#2563eb"),
+            ("MAU", str(mau_val), mau_sub, "#2563eb"),
+            ("Utilization", util_str, util_sub, LM_AMBER),
+            ("Stickiness", stickiness_str, sticky_sub, "#8b5cf6"),
+        ]),
+        Spacer(1, 10),
+    ]
+
+
+def _pdf_usage_stats(data):
+    usage = data.get("usage_overview", {})
+    chats_per_day = usage.get("chats_per_day", {}).get("value", "\u2014")
+    projects_created = usage.get("projects_created", {}).get("value", "\u2014")
+    artifacts_created = usage.get("artifacts_created", {}).get("value", "\u2014")
+    cpd_change = usage.get("chats_per_day", {}).get("change_percent")
+    proj_change = usage.get("projects_created", {}).get("change_percent")
+    art_change = usage.get("artifacts_created", {}).get("change_percent")
+    cpd_sub = f"Avg per day {_trend_text(cpd_change)}" if cpd_change is not None else "Avg per day"
+    proj_sub = f"MTD {_trend_text(proj_change)}" if proj_change is not None else "MTD"
+    art_sub = f"MTD {_trend_text(art_change)}" if art_change is not None else "MTD"
+    return [
+        StatCardRow([
+            ("Chats / Day", str(chats_per_day), cpd_sub, LM_RED),
+            ("Projects Created", str(projects_created), proj_sub, LM_RED),
+            ("Artifacts Created", str(artifacts_created), art_sub, LM_RED),
+        ]),
+        Spacer(1, 10),
+    ]
+
+
+def _pdf_dau_chart(data):
+    dau_chart_data = data.get("dau_chart", {"labels": [], "data": []})
+    dau_data = dau_chart_data.get("data", [])
+    dau_labels = dau_chart_data.get("labels", [])
+    if not dau_data:
+        return []
+    if len(dau_data) > 14:
+        dau_data = dau_data[-14:]
+        dau_labels = dau_labels[-14:]
+    fig = _make_line_chart(
+        dau_labels, dau_data,
+        "Daily Active Users (DAU)",
+        color=LM_GREEN, color_rgb=(22 / 255, 163 / 255, 74 / 255),
+        show_labels=len(dau_data) <= 14,
+    )
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, 2.2 * inch)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [
+        SectionHeader("Daily Active Users \u00b7 Last 30 Days"),
+        Spacer(1, 10),
+        chart_table,
+        Spacer(1, 14),
+    ]
+
+
+def _pdf_top_users_chats(data):
+    top_chats = data.get("top_users_chats", [])
+    if not top_chats:
+        return []
+    fig = _make_hbar_chart(
+        [u["name"] for u in top_chats],
+        [u["count"] for u in top_chats],
+        "Top Users by Chats (MTD)",
+    )
+    h = max(1.5, len(top_chats) * 0.35 + 0.8) * inch
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, h)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [chart_table, Spacer(1, 14)]
+
+
 def _pdf_top_users_projects(data):
     top_projects = data.get("top_users_projects", [])
     if not top_projects:
@@ -386,11 +502,15 @@ _COMPONENT_RENDERERS = {
     "stats_row": lambda data, comps: _pdf_stats_row(data),
     "status_donut": lambda data, comps: _pdf_status_donut(data),
     "role_donut": lambda data, comps: _pdf_role_donut(data),
+    "activity_metrics": lambda data, comps: _pdf_activity_metrics(data),
+    "usage_stats": lambda data, comps: _pdf_usage_stats(data),
     "daily_chats": lambda data, comps: _pdf_daily_chats(data),
+    "dau_chart": lambda data, comps: _pdf_dau_chart(data),
     "wau_trend": lambda data, comps: _pdf_wau_trend(data),
     "wau_stats_tile": lambda data, comps: _pdf_wau_stats_tile(data),
     "top_users_projects": lambda data, comps: _pdf_top_users_projects(data),
     "top_users_artifacts": lambda data, comps: _pdf_top_users_artifacts(data),
+    "top_users_chats": lambda data, comps: _pdf_top_users_chats(data),
     "claude_code_stats": lambda data, comps: _pdf_claude_code_stats(data),
     "member_directory": lambda data, comps: _pdf_member_directory(data),
     "executive_summary": lambda data, comps: _pdf_executive_summary(data, comps),

@@ -23,11 +23,15 @@ REPORT_COMPONENTS = [
     {"key": "status_donut", "label": "Member Status Breakdown (Donut)", "category": "Overview", "supports_date_range": False},
     {"key": "role_donut", "label": "Role Distribution (Donut)", "category": "Overview", "supports_date_range": False},
     # --- Activity ---
+    {"key": "activity_metrics", "label": "Activity Metrics (DAU, WAU, MAU, Utilization, Stickiness)", "category": "Activity", "supports_date_range": False},
+    {"key": "usage_stats", "label": "Usage Stats (Chats/Day, Projects, Artifacts)", "category": "Activity", "supports_date_range": False},
     {"key": "daily_chats", "label": "Daily Chat Activity (Line Chart)", "category": "Activity", "supports_date_range": True},
+    {"key": "dau_chart", "label": "Daily Active Users (Line Chart)", "category": "Activity", "supports_date_range": True},
     {"key": "wau_trend", "label": "Weekly Active Users Trend (Line Chart)", "category": "Activity", "supports_date_range": True},
     {"key": "wau_stats_tile", "label": "WAU Stats Tile (WAU, WoW%, Utilization, Growth)", "category": "Activity", "supports_date_range": True},
     {"key": "top_users_projects", "label": "Top Users by Projects (Bar Chart)", "category": "Activity", "supports_date_range": True},
     {"key": "top_users_artifacts", "label": "Top Users by Artifacts (Bar Chart)", "category": "Activity", "supports_date_range": True},
+    {"key": "top_users_chats", "label": "Top Users by Chats (Bar Chart)", "category": "Activity", "supports_date_range": True},
     # --- Claude Code ---
     {"key": "claude_code_stats", "label": "Claude Code Stats (Lines, Rate, Top User)", "category": "Claude Code", "supports_date_range": False},
     # --- People ---
@@ -94,6 +98,27 @@ _BUILTIN_TEMPLATES = [
             {"key": "member_directory", "enabled": True, "order": 3, "date_range": None},
         ],
     },
+    {
+        "id": "tpl-expanded",
+        "title": "Expanded Report",
+        "description": "Full report plus trend metrics, stickiness, DAU chart, usage stats, and chat rankings",
+        "components": [
+            {"key": "stats_row", "enabled": True, "order": 0, "date_range": None},
+            {"key": "activity_metrics", "enabled": True, "order": 1, "date_range": None},
+            {"key": "usage_stats", "enabled": True, "order": 2, "date_range": None},
+            {"key": "status_donut", "enabled": True, "order": 3, "date_range": None},
+            {"key": "role_donut", "enabled": True, "order": 4, "date_range": None},
+            {"key": "daily_chats", "enabled": True, "order": 5, "date_range": None},
+            {"key": "dau_chart", "enabled": True, "order": 6, "date_range": None},
+            {"key": "wau_trend", "enabled": True, "order": 7, "date_range": None},
+            {"key": "wau_stats_tile", "enabled": True, "order": 8, "date_range": None},
+            {"key": "top_users_chats", "enabled": True, "order": 9, "date_range": None},
+            {"key": "top_users_projects", "enabled": True, "order": 10, "date_range": None},
+            {"key": "top_users_artifacts", "enabled": True, "order": 11, "date_range": None},
+            {"key": "claude_code_stats", "enabled": True, "order": 12, "date_range": None},
+            {"key": "member_directory", "enabled": True, "order": 13, "date_range": None},
+        ],
+    },
 ]
 
 
@@ -113,8 +138,10 @@ def load_reports() -> dict:
         return data
     with open(REPORTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    # Seed templates if empty
-    if not data.get("templates"):
+    # Seed templates if empty, or update if new built-in templates were added
+    existing_ids = {t["id"] for t in data.get("templates", [])}
+    builtin_ids = {t["id"] for t in _BUILTIN_TEMPLATES}
+    if not data.get("templates") or builtin_ids - existing_ids:
         data["templates"] = copy.deepcopy(_BUILTIN_TEMPLATES)
         save_reports(data)
     return data
