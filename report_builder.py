@@ -730,9 +730,9 @@ function renderCanvas() {
             '<span class="drag-handle">&#9776;</span>' +
             '<span class="item-label">' + label + '</span>';
         if (supportsDate) {
-            html += '<span class="date-toggle" onclick="toggleDateOverride(\'' + item.key + '\', this)">&#128197;</span>';
+            html += '<span class="date-toggle" data-key="' + item.key + '" data-action="date">&#128197;</span>';
         }
-        html += '<span class="item-remove" onclick="removeItem(\'' + item.key + '\')">&times;</span>';
+        html += '<span class="item-remove" data-key="' + item.key + '" data-action="remove">&times;</span>';
         html += '</div>';
         if (supportsDate) {
             var dr = item.date_range || {};
@@ -745,6 +745,13 @@ function renderCanvas() {
         }
     });
     el.innerHTML = html;
+    // Attach click handlers via delegation (avoids quote-escaping issues in inline handlers)
+    el.querySelectorAll('[data-action="remove"]').forEach(function(btn) {
+        btn.addEventListener('click', function() { removeItem(btn.getAttribute('data-key')); });
+    });
+    el.querySelectorAll('[data-action="date"]').forEach(function(btn) {
+        btn.addEventListener('click', function() { toggleDateOverride(btn.getAttribute('data-key')); });
+    });
 }
 
 function removeItem(key) {
@@ -792,7 +799,7 @@ function dragEnd(e) {
 }
 
 // --- Date overrides ---
-function toggleDateOverride(key, btn) {
+function toggleDateOverride(key) {
     var el = document.getElementById('dateOverride_' + key);
     if (el) el.classList.toggle('visible');
 }
