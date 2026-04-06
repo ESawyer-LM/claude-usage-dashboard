@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.3] - 2026-04-06
+
+### Changed
+- Consolidated all pie chart changes: donut-to-pie conversion, Account Type Distribution chart, horizontal row layout, square PDF aspect ratio, and legacy key migration
+
 ## [0.9.2a] - 2026-04-06
 
 ### Fixed
