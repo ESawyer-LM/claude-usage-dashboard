@@ -2,6 +2,19 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.9.7] - 2026-04-06
+
+### Changed
+- Stats row in report builder now shows Total Seats, Active Members, Pending Invites, Seat Tier (was DAU/WAU/Utilization)
+
+### Added
+- Claude Code Daily Sessions line chart component (cc_sessions_chart)
+- Claude Code Daily Lines Accepted line chart component (cc_lines_chart)
+- Claude Code Top Users bar charts component (cc_top_users)
+- Claude Code User Breakdown table component (cc_user_table)
+- All new components available in both HTML and PDF report builders
+- Updated Full Dashboard, Activity Deep Dive, and Expanded Report templates
+
 ## [0.9.6] - 2026-04-06
 
 ### Fixed
