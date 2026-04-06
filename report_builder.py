@@ -301,7 +301,82 @@ def _sync_report_schedules():
 # ---------------------------------------------------------------------------
 # HTML Templates
 # ---------------------------------------------------------------------------
-from admin import _BASE_CSS
+# Base CSS shared with admin.py — duplicated here to avoid circular import
+# (admin.py imports report_builder blueprint, report_builder needs the CSS)
+_BASE_CSS = """
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f5f5f5; color: #1a1a1a; line-height: 1.5;
+    }
+    .navbar {
+        background: #C8102E; padding: 14px 24px; display: flex;
+        align-items: center; justify-content: space-between; color: white;
+    }
+    .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
+    .navbar-brand .badge {
+        width: 32px; height: 32px; border-radius: 50%; background: white;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 12px; color: #C8102E;
+    }
+    .navbar a { color: white; text-decoration: none; font-size: 13px; opacity: 0.9; }
+    .navbar a:hover { opacity: 1; }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+    .card {
+        background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 { font-size: 16px; font-weight: 600; color: #111827; margin-bottom: 16px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+    .form-group input, .form-group textarea, .form-group select {
+        width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+        font-size: 14px; outline: none; font-family: inherit;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #C8102E; }
+    .form-group .hint { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .btn {
+        display: inline-block; padding: 8px 20px; border-radius: 8px; font-size: 14px;
+        font-weight: 500; cursor: pointer; border: none; text-decoration: none;
+    }
+    .btn-red { background: #C8102E; color: white; }
+    .btn-red:hover { background: #a00d24; }
+    .btn-gray { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .btn-gray:hover { background: #e5e7eb; }
+    .inline-row { display: flex; gap: 12px; align-items: end; }
+    .inline-row .form-group { flex: 1; }
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;
+    }
+    .modal-box {
+        background: white; border-radius: 12px; padding: 24px; width: 400px;
+        max-width: 90vw; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; }
+    .btn-sm { padding: 6px 16px; font-size: 13px; }
+    .btn-danger-text { color: #991b1b; }
+    .toast-container {
+        position: fixed; top: 16px; right: 16px; z-index: 2000;
+        display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+        padding: 10px 20px; border-radius: 8px; font-size: 13px; pointer-events: auto;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: toastIn 0.3s ease;
+        max-width: 380px;
+    }
+    .toast-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .toast-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @media (max-width: 640px) {
+        .container { padding: 12px; }
+        .inline-row { flex-direction: column; }
+        .navbar { padding: 10px 14px; }
+        .navbar-brand { font-size: 15px; }
+        .card { padding: 16px; }
+        .modal-box { width: auto; margin: 16px; }
+    }
+"""
 
 REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
