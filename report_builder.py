@@ -289,12 +289,15 @@ def api_send_report(report_id):
     recipients = schedule.get("recipients", [])
     if not recipients:
         return jsonify({"ok": False, "error": "No recipients configured"}), 400
-    # Try fresh scrape, fall back to cache
+    # Use fresh cache if available (from recent UI-triggered scrape), else scrape
+    from admin import get_cached_data_if_fresh
     import scraper
-    try:
-        data = scraper.scrape()
-    except Exception:
-        data = _load_cached_data()
+    data = get_cached_data_if_fresh()
+    if not data:
+        try:
+            data = scraper.scrape()
+        except Exception:
+            data = _load_cached_data()
     if not data:
         return jsonify({"ok": False, "error": "No data available"}), 400
     filepath = generate_report_pdf(data, report)
@@ -332,6 +335,188 @@ def _sync_report_schedules():
         sched_module.sync_report_jobs()
     except Exception as e:
         logger.error(f"Failed to sync report schedules: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Shared Refresh Modal (injected into both manager and builder templates)
+# ---------------------------------------------------------------------------
+_REFRESH_MODAL_HTML = """
+<!-- Scrape Refresh Modal -->
+<div id="refreshModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:460px;text-align:center;padding:32px;">
+    <div id="refreshAsk">
+      <div style="font-size:36px;margin-bottom:12px;">&#128260;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Refresh data?</h2>
+      <p style="font-size:14px;color:#6b7280;margin:0 0 6px 0;line-height:1.5;">
+        Would you like to pull the latest data from Claude.ai before generating this report?
+      </p>
+      <p style="font-size:12px;color:#9ca3af;margin:0 0 20px 0;">
+        Last scraped: <strong id="lastScrapeTime">&mdash;</strong>
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button id="btnRefreshYes" class="btn btn-red">Yes, refresh first</button>
+        <button id="btnRefreshNo" class="btn btn-gray">No, use cached data</button>
+        <button id="btnRefreshCancel" class="btn" style="background:transparent;color:#9ca3af;">Cancel</button>
+      </div>
+    </div>
+    <div id="refreshProgress" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Refreshing data&hellip;</h2>
+      <div style="margin:20px 0 16px 0;">
+        <div style="width:100%;height:12px;background:#f3f4f6;border-radius:6px;overflow:hidden;">
+          <div id="progressFill" style="height:100%;background:linear-gradient(90deg,#C8102E,#e05070);border-radius:6px;transition:width 0.4s ease;width:0%;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;">
+          <span id="progressLabel" style="color:#6b7280;">Starting scrape...</span>
+          <span id="progressPercent" style="color:#C8102E;font-weight:700;">0%</span>
+        </div>
+      </div>
+      <div id="progressStages" style="text-align:left;margin-top:16px;padding:12px 16px;background:#f9fafb;border-radius:8px;max-height:180px;overflow-y:auto;"></div>
+    </div>
+    <div id="refreshDone" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#9989;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Data refreshed!</h2>
+      <p style="font-size:14px;color:#6b7280;">Generating your report now&hellip;</p>
+    </div>
+    <div id="refreshError" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#10060;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Scrape failed</h2>
+      <p id="refreshErrorMsg" style="font-size:14px;color:#C8102E;margin:0 0 6px 0;"></p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button id="btnErrorRetry" class="btn btn-red">Retry</button>
+        <button id="btnErrorContinue" class="btn btn-gray">Continue with cached data</button>
+        <button id="btnErrorCancel" class="btn" style="background:transparent;color:#9ca3af;">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+"""
+
+_REFRESH_MODAL_JS = """
+// ==========================================================================
+// Refresh Modal — scrape progress tracking
+// ==========================================================================
+var SCRAPER_STAGES = [
+  {key: "init",         label: "Initializing session"},
+  {key: "members",      label: "Fetching member data"},
+  {key: "seats",        label: "Fetching seats & subscription"},
+  {key: "activity",     label: "Fetching activity metrics"},
+  {key: "usage",        label: "Fetching usage metrics"},
+  {key: "claude_code",  label: "Fetching Claude Code stats"},
+  {key: "processing",   label: "Processing & caching data"},
+  {key: "complete",     label: "Scrape complete"}
+];
+var _refreshPollTimer = null;
+var _refreshOnProceed = null;
+
+function showRefreshModal(onProceed) {
+    _refreshOnProceed = onProceed;
+    document.getElementById('refreshAsk').style.display = '';
+    document.getElementById('refreshProgress').style.display = 'none';
+    document.getElementById('refreshDone').style.display = 'none';
+    document.getElementById('refreshError').style.display = 'none';
+    fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { document.getElementById('lastScrapeTime').textContent = d.last_scrape || 'Never'; })
+        .catch(function() { document.getElementById('lastScrapeTime').textContent = 'Unknown'; });
+    var stagesDiv = document.getElementById('progressStages');
+    stagesDiv.innerHTML = SCRAPER_STAGES.map(function(s) {
+        return '<div class="progress-stage" data-stage="' + s.key + '">' +
+               '<span class="stage-icon" style="width:16px;text-align:center;flex-shrink:0;">&#9675;</span>' +
+               '<span>' + s.label + '</span></div>';
+    }).join('');
+    document.getElementById('refreshModal').style.display = 'flex';
+}
+function hideRefreshModal() {
+    document.getElementById('refreshModal').style.display = 'none';
+    if (_refreshPollTimer) { clearInterval(_refreshPollTimer); _refreshPollTimer = null; }
+    _refreshOnProceed = null;
+}
+function startScrapeAndTrack() {
+    document.getElementById('refreshAsk').style.display = 'none';
+    document.getElementById('refreshProgress').style.display = '';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressPercent').textContent = '0%';
+    document.getElementById('progressLabel').textContent = 'Starting scrape...';
+    fetch('/api/scrape/start', {method: 'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.ok) { showScrapeError(data.error || 'Failed to start scrape'); return; }
+            pollScrapeProgress(data.job_id);
+        })
+        .catch(function(err) { showScrapeError(err.message); });
+}
+function pollScrapeProgress(jobId) {
+    _refreshPollTimer = setInterval(function() {
+        fetch('/api/scrape/progress/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) return;
+                document.getElementById('progressFill').style.width = data.percent + '%';
+                document.getElementById('progressPercent').textContent = data.percent + '%';
+                document.getElementById('progressLabel').textContent = data.label;
+                updateStageChecklist(data.stage);
+                if (data.status === 'complete') {
+                    clearInterval(_refreshPollTimer); _refreshPollTimer = null;
+                    document.getElementById('refreshProgress').style.display = 'none';
+                    document.getElementById('refreshDone').style.display = '';
+                    var cb = _refreshOnProceed;
+                    setTimeout(function() { hideRefreshModal(); if (cb) cb(); }, 1200);
+                } else if (data.status === 'error') {
+                    clearInterval(_refreshPollTimer); _refreshPollTimer = null;
+                    showScrapeError(data.error || 'Scrape failed');
+                }
+            })
+            .catch(function() {});
+    }, 500);
+}
+function updateStageChecklist(currentStage) {
+    var stages = document.querySelectorAll('#refreshModal .progress-stage');
+    var reachedCurrent = false;
+    for (var i = 0; i < stages.length; i++) {
+        var el = stages[i];
+        var key = el.getAttribute('data-stage');
+        if (key === currentStage) {
+            reachedCurrent = true;
+            el.style.color = '#C8102E'; el.style.fontWeight = '600';
+            el.querySelector('.stage-icon').innerHTML = '&#9673;';
+        } else if (!reachedCurrent) {
+            el.style.color = '#16a34a'; el.style.fontWeight = '';
+            el.querySelector('.stage-icon').innerHTML = '&#10003;';
+        } else {
+            el.style.color = '#9ca3af'; el.style.fontWeight = '';
+            el.querySelector('.stage-icon').innerHTML = '&#9675;';
+        }
+    }
+}
+function showScrapeError(msg) {
+    document.getElementById('refreshProgress').style.display = 'none';
+    document.getElementById('refreshAsk').style.display = 'none';
+    document.getElementById('refreshError').style.display = '';
+    document.getElementById('refreshErrorMsg').textContent = msg;
+}
+document.getElementById('btnRefreshYes').addEventListener('click', startScrapeAndTrack);
+document.getElementById('btnRefreshNo').addEventListener('click', function() {
+    var cb = _refreshOnProceed; hideRefreshModal(); if (cb) cb();
+});
+document.getElementById('btnRefreshCancel').addEventListener('click', hideRefreshModal);
+document.getElementById('btnErrorRetry').addEventListener('click', function() {
+    document.getElementById('refreshError').style.display = 'none';
+    startScrapeAndTrack();
+});
+document.getElementById('btnErrorContinue').addEventListener('click', function() {
+    var cb = _refreshOnProceed; hideRefreshModal(); if (cb) cb();
+});
+document.getElementById('btnErrorCancel').addEventListener('click', hideRefreshModal);
+document.getElementById('refreshModal').addEventListener('click', function(e) {
+    if (e.target === e.currentTarget) hideRefreshModal();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('refreshModal').style.display === 'flex') {
+        hideRefreshModal();
+    }
+});
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +575,7 @@ _BASE_CSS = """
         max-width: 90vw; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
     }
     .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; }
+    .progress-stage { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: #9ca3af; }
     .btn-sm { padding: 6px 16px; font-size: 13px; }
     .btn-danger-text { color: #991b1b; }
     .toast-container {
@@ -508,8 +694,8 @@ REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
             <div class="report-actions">
                 <a href="/reports/{{ r.id }}/edit" class="btn btn-gray">Edit</a>
                 <button class="btn btn-gray" onclick="cloneReport('{{ r.id }}')">Clone</button>
-                <button class="btn btn-gray" onclick="window.open('/api/reports/{{ r.id }}/preview')">Preview</button>
-                <button class="btn btn-gray" onclick="window.location='/api/reports/{{ r.id }}/pdf'">PDF</button>
+                <button class="btn btn-gray" onclick="previewReport('{{ r.id }}')">Preview</button>
+                <button class="btn btn-gray" onclick="exportPdf('{{ r.id }}')">PDF</button>
                 <button class="btn btn-gray btn-danger-text" onclick="confirmDelete('{{ r.id }}', '{{ r.title|e }}')">Delete</button>
             </div>
         </div>
@@ -534,6 +720,8 @@ REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
         </div>
     </div>
 </div>
+
+""" + _REFRESH_MODAL_HTML + """
 
 <script>
 var deleteId = null;
@@ -593,6 +781,13 @@ function showToast(msg, type) {
     c.appendChild(t);
     setTimeout(function() { t.remove(); }, 3000);
 }
+function previewReport(id) {
+    showRefreshModal(function() { window.open('/api/reports/' + id + '/preview'); });
+}
+function exportPdf(id) {
+    showRefreshModal(function() { window.location.href = '/api/reports/' + id + '/pdf'; });
+}
+""" + _REFRESH_MODAL_JS + """
 </script>
 </body></html>"""
 
@@ -763,6 +958,8 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
         </div>
     </div>
 </div>
+
+""" + _REFRESH_MODAL_HTML + """
 
 <script>
 // --- State ---
@@ -1008,10 +1205,10 @@ function saveReport() {
         }).catch(function() { showToast('Save failed', 'error'); });
 }
 
-// --- Preview ---
+// --- Preview (with refresh modal) ---
 function previewReport() {
     if (isNew) {
-        // Save first, then preview
+        // Save first, then show refresh modal, then preview
         var title = document.getElementById('reportTitle').value.trim();
         if (!title) { showToast('Title is required', 'error'); return; }
         var enabled = canvasItems.filter(function(c) { return c.enabled; });
@@ -1025,11 +1222,15 @@ function previewReport() {
                     reportId = d.report.id;
                     isNew = false;
                     history.replaceState(null, '', '/reports/' + reportId + '/edit');
-                    window.open('/api/reports/' + reportId + '/preview');
+                    showRefreshModal(function() {
+                        window.open('/api/reports/' + reportId + '/preview');
+                    });
                 } else { showToast(d.error || 'Save failed', 'error'); }
             }).catch(function() { showToast('Save failed', 'error'); });
     } else {
-        window.open('/api/reports/' + reportId + '/preview');
+        showRefreshModal(function() {
+            window.open('/api/reports/' + reportId + '/preview');
+        });
     }
 }
 
@@ -1085,5 +1286,7 @@ fetch('/api/reports/date-bounds').then(function(r) { return r.json(); }).then(fu
 // --- Init ---
 renderPalette();
 renderCanvas();
+
+""" + _REFRESH_MODAL_JS + """
 </script>
 </body></html>"""

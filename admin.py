@@ -29,6 +29,19 @@ import scheduler as sched_module
 logger = config.get_logger()
 
 
+def get_cached_data_if_fresh(max_age_seconds=60):
+    """Return cached data if last_data.json was updated within max_age_seconds, else None."""
+    import json
+    try:
+        mtime = os.path.getmtime(config.CACHE_FILE)
+        if time.time() - mtime < max_age_seconds:
+            with open(config.CACHE_FILE) as f:
+                return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
 def _format_time(iso_str, tz_str="America/Chicago"):
     """Format an ISO datetime string for display in the given timezone."""
     if not iso_str or iso_str in ("Never", "N/A"):
@@ -493,7 +506,7 @@ def create_app(scheduler_ref=None):
                     if not report_config:
                         logger.error(f"Custom report '{custom_id}' not found for test send")
                         return
-                    data = scraper.scrape()
+                    data = get_cached_data_if_fresh() or scraper.scrape()
                     pdf_path = generate_report_pdf(data, report_config)
                     emailer.send_report(pdf_path, data, [recipient], is_test=True, report_type="custom")
                     logger.info(f"Custom test report sent to {recipient}")
@@ -533,6 +546,59 @@ def create_app(scheduler_ref=None):
             "cookie_set": bool(settings.get("session_cookie")),
             "smtp_configured": bool(settings.get("smtp_pass")),
             "timezone": tz_str,
+            "last_scrape": _format_time(settings.get("last_run", "Never"), tz_str),
+        })
+
+    # ------------------------------------------------------------------
+    # Scrape progress endpoints
+    # ------------------------------------------------------------------
+    @app.route("/api/scrape/start", methods=["POST"])
+    @login_required
+    def api_scrape_start():
+        from progress import progress_store
+        import scraper
+
+        job_id = progress_store.create_job()
+
+        def run_in_background():
+            try:
+                cookie = config.load_settings().get("session_cookie", "")
+                if not cookie:
+                    progress_store.fail(job_id, "Session cookie not configured")
+                    return
+
+                def on_progress(stage_key, percent, label):
+                    progress_store.update(job_id, stage_key, percent, label)
+
+                data = scraper.scrape(progress_callback=on_progress)
+
+                # Cache is already saved inside scraper.scrape() via config.save_cache()
+                progress_store.complete(job_id)
+
+            except Exception as e:
+                logger.error(f"Background scrape failed: {e}")
+                progress_store.fail(job_id, str(e))
+
+        t = threading.Thread(target=run_in_background, daemon=True)
+        t.start()
+        return jsonify({"ok": True, "job_id": job_id})
+
+    @app.route("/api/scrape/progress/<job_id>")
+    @login_required
+    def api_scrape_progress(job_id):
+        from progress import progress_store
+
+        job = progress_store.get(job_id)
+        if not job:
+            return jsonify({"ok": False, "error": "Job not found"}), 404
+
+        return jsonify({
+            "ok": True,
+            "status": job["status"],
+            "percent": job["percent"],
+            "stage": job["stage"],
+            "label": job["label"],
+            "error": job["error"],
         })
 
     @app.route("/api/check-update")
@@ -671,6 +737,7 @@ _BASE_CSS = """
         max-width: 90vw; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
     }
     .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; }
+    .progress-stage { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: #9ca3af; }
     .sched-header {
         display: flex; align-items: center; justify-content: space-between;
         padding: 12px 16px; cursor: pointer;
@@ -1223,6 +1290,66 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 
 </div>
 
+<!-- Scrape Refresh Modal -->
+<div id="refreshModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box" style="max-width:460px;text-align:center;padding:32px;">
+
+    <!-- State 1: Ask the question -->
+    <div id="refreshAsk">
+      <div style="font-size:36px;margin-bottom:12px;">&#128260;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Refresh data?</h2>
+      <p style="font-size:14px;color:#6b7280;margin:0 0 6px 0;line-height:1.5;">
+        Would you like to pull the latest data from Claude.ai before generating this report?
+      </p>
+      <p style="font-size:12px;color:#9ca3af;margin:0 0 20px 0;">
+        Last scraped: <strong id="lastScrapeTime">&mdash;</strong>
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button id="btnRefreshYes" class="btn btn-red">Yes, refresh first</button>
+        <button id="btnRefreshNo" class="btn btn-gray">No, use cached data</button>
+        <button id="btnRefreshCancel" class="btn" style="background:transparent;color:#9ca3af;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- State 2: Progress display -->
+    <div id="refreshProgress" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#9203;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Refreshing data&hellip;</h2>
+      <div style="margin:20px 0 16px 0;">
+        <div style="width:100%;height:12px;background:#f3f4f6;border-radius:6px;overflow:hidden;">
+          <div id="progressFill" style="height:100%;background:linear-gradient(90deg,#C8102E,#e05070);border-radius:6px;transition:width 0.4s ease;width:0%;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;">
+          <span id="progressLabel" style="color:#6b7280;">Starting scrape...</span>
+          <span id="progressPercent" style="color:#C8102E;font-weight:700;">0%</span>
+        </div>
+      </div>
+      <div id="progressStages" style="text-align:left;margin-top:16px;padding:12px 16px;background:#f9fafb;border-radius:8px;max-height:180px;overflow-y:auto;">
+      </div>
+    </div>
+
+    <!-- State 3: Complete -->
+    <div id="refreshDone" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#9989;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Data refreshed!</h2>
+      <p style="font-size:14px;color:#6b7280;">Generating your report now&hellip;</p>
+    </div>
+
+    <!-- State 4: Error -->
+    <div id="refreshError" style="display:none;">
+      <div style="font-size:36px;margin-bottom:12px;">&#10060;</div>
+      <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0 0 8px 0;border:none;padding:0;">Scrape failed</h2>
+      <p id="refreshErrorMsg" style="font-size:14px;color:#C8102E;margin:0 0 6px 0;"></p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button id="btnErrorRetry" class="btn btn-red">Retry</button>
+        <button id="btnErrorContinue" class="btn btn-gray">Continue with cached data</button>
+        <button id="btnErrorCancel" class="btn" style="background:transparent;color:#9ca3af;">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- Inactivity warning modal -->
 <div id="inactivityModal" class="modal-overlay" style="z-index:9999;">
     <div class="modal-box" style="padding:32px;text-align:center;">
@@ -1325,7 +1452,34 @@ function formFetch(formId, url, resultId) {
 
 formFetch('cookieForm', '/api/save-cookie', 'cookieResult');
 formFetch('smtpForm', '/api/save-smtp', 'smtpResult');
-formFetch('testForm', '/api/send-test', 'testResult');
+
+// Card 5: Send Test Report — wrapped with refresh modal
+document.getElementById('testForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    var email = form.querySelector('input[name="test_email"]').value.trim();
+    if (!email) { showToast('Enter an email address', 'error'); return; }
+
+    showRefreshModal(function() {
+        var result = document.getElementById('testResult');
+        var btn = form.querySelector('button[type="submit"]');
+        btnLoading(btn);
+        result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
+        fetch('/api/send-test', { method: 'POST', body: new FormData(form) })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                btnDone(btn);
+                if (d.ok) {
+                    result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + (d.message || 'Sent') + '</span>';
+                    showToast(d.message || 'Report queued', 'success');
+                } else {
+                    result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+                    showToast(d.error || 'Error', 'error');
+                }
+            })
+            .catch(function() { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
+    });
+});
 
 // Test SMTP button
 document.getElementById('testSmtpBtn').addEventListener('click', function() {
@@ -1465,23 +1619,25 @@ function cancelDelete(id) {
 }
 
 function sendNowSchedule(id, btn) {
-    var card = document.getElementById('sched-' + id);
-    var result = card.querySelector('.sched-result');
-    btnLoading(btn);
-    result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
-    fetch('/api/schedules/' + id + '/send-now', { method: 'POST' })
-        .then(r => r.json())
-        .then(d => {
-            btnDone(btn);
-            if (d.ok) {
-                result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
-                showToast(d.message, 'success');
-            } else {
-                result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
-                showToast(d.error || 'Error', 'error');
-            }
-        })
-        .catch(() => { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
+    showRefreshModal(function() {
+        var card = document.getElementById('sched-' + id);
+        var result = card.querySelector('.sched-result');
+        btnLoading(btn);
+        result.innerHTML = '<span style="color:#6b7280;">Sending...</span>';
+        fetch('/api/schedules/' + id + '/send-now', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                btnDone(btn);
+                if (d.ok) {
+                    result.innerHTML = '<span style="color:#16a34a;">&#10003; ' + d.message + '</span>';
+                    showToast(d.message, 'success');
+                } else {
+                    result.innerHTML = '<span style="color:#C8102E;">&#10007; ' + (d.error || 'Error') + '</span>';
+                    showToast(d.error || 'Error', 'error');
+                }
+            })
+            .catch(function() { btnDone(btn); result.innerHTML = '<span style="color:#C8102E;">Network error</span>'; showToast('Network error', 'error'); });
+    });
 }
 
 // Check for updates on page load and every 30 minutes
@@ -1664,9 +1820,154 @@ setInterval(function() {
     resetTimer();
 })();
 
+// ==========================================================================
+// Refresh Modal — scrape progress tracking
+// ==========================================================================
+var SCRAPER_STAGES = [
+  {key: "init",         label: "Initializing session"},
+  {key: "members",      label: "Fetching member data"},
+  {key: "seats",        label: "Fetching seats & subscription"},
+  {key: "activity",     label: "Fetching activity metrics"},
+  {key: "usage",        label: "Fetching usage metrics"},
+  {key: "claude_code",  label: "Fetching Claude Code stats"},
+  {key: "processing",   label: "Processing & caching data"},
+  {key: "complete",     label: "Scrape complete"}
+];
+
+var _refreshPollTimer = null;
+var _refreshOnProceed = null;
+
+function showRefreshModal(onProceed) {
+    _refreshOnProceed = onProceed;
+    document.getElementById('refreshAsk').style.display = '';
+    document.getElementById('refreshProgress').style.display = 'none';
+    document.getElementById('refreshDone').style.display = 'none';
+    document.getElementById('refreshError').style.display = 'none';
+
+    // Populate "last scraped" timestamp
+    fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { document.getElementById('lastScrapeTime').textContent = d.last_scrape || 'Never'; })
+        .catch(function() { document.getElementById('lastScrapeTime').textContent = 'Unknown'; });
+
+    // Build stage checklist
+    var stagesDiv = document.getElementById('progressStages');
+    stagesDiv.innerHTML = SCRAPER_STAGES.map(function(s) {
+        return '<div class="progress-stage" data-stage="' + s.key + '">' +
+               '<span class="stage-icon" style="width:16px;text-align:center;flex-shrink:0;">&#9675;</span>' +
+               '<span>' + s.label + '</span></div>';
+    }).join('');
+
+    document.getElementById('refreshModal').style.display = 'flex';
+}
+
+function hideRefreshModal() {
+    document.getElementById('refreshModal').style.display = 'none';
+    if (_refreshPollTimer) { clearInterval(_refreshPollTimer); _refreshPollTimer = null; }
+    _refreshOnProceed = null;
+}
+
+function startScrapeAndTrack() {
+    document.getElementById('refreshAsk').style.display = 'none';
+    document.getElementById('refreshProgress').style.display = '';
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressPercent').textContent = '0%';
+    document.getElementById('progressLabel').textContent = 'Starting scrape...';
+
+    fetch('/api/scrape/start', {method: 'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.ok) { showScrapeError(data.error || 'Failed to start scrape'); return; }
+            pollScrapeProgress(data.job_id);
+        })
+        .catch(function(err) { showScrapeError(err.message); });
+}
+
+function pollScrapeProgress(jobId) {
+    _refreshPollTimer = setInterval(function() {
+        fetch('/api/scrape/progress/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) return;
+                document.getElementById('progressFill').style.width = data.percent + '%';
+                document.getElementById('progressPercent').textContent = data.percent + '%';
+                document.getElementById('progressLabel').textContent = data.label;
+                updateStageChecklist(data.stage);
+
+                if (data.status === 'complete') {
+                    clearInterval(_refreshPollTimer); _refreshPollTimer = null;
+                    document.getElementById('refreshProgress').style.display = 'none';
+                    document.getElementById('refreshDone').style.display = '';
+                    var cb = _refreshOnProceed;
+                    setTimeout(function() {
+                        hideRefreshModal();
+                        if (cb) cb();
+                    }, 1200);
+                } else if (data.status === 'error') {
+                    clearInterval(_refreshPollTimer); _refreshPollTimer = null;
+                    showScrapeError(data.error || 'Scrape failed');
+                }
+            })
+            .catch(function() { /* network blip — keep polling */ });
+    }, 500);
+}
+
+function updateStageChecklist(currentStage) {
+    var stages = document.querySelectorAll('#refreshModal .progress-stage');
+    var reachedCurrent = false;
+    for (var i = 0; i < stages.length; i++) {
+        var el = stages[i];
+        var key = el.getAttribute('data-stage');
+        if (key === currentStage) {
+            reachedCurrent = true;
+            el.style.color = '#C8102E';
+            el.style.fontWeight = '600';
+            el.querySelector('.stage-icon').innerHTML = '&#9673;';
+        } else if (!reachedCurrent) {
+            el.style.color = '#16a34a';
+            el.style.fontWeight = '';
+            el.querySelector('.stage-icon').innerHTML = '&#10003;';
+        } else {
+            el.style.color = '#9ca3af';
+            el.style.fontWeight = '';
+            el.querySelector('.stage-icon').innerHTML = '&#9675;';
+        }
+    }
+}
+
+function showScrapeError(msg) {
+    document.getElementById('refreshProgress').style.display = 'none';
+    document.getElementById('refreshAsk').style.display = 'none';
+    document.getElementById('refreshError').style.display = '';
+    document.getElementById('refreshErrorMsg').textContent = msg;
+}
+
+// Wire refresh modal buttons
+document.getElementById('btnRefreshYes').addEventListener('click', startScrapeAndTrack);
+document.getElementById('btnRefreshNo').addEventListener('click', function() {
+    var cb = _refreshOnProceed;
+    hideRefreshModal();
+    if (cb) cb();
+});
+document.getElementById('btnRefreshCancel').addEventListener('click', hideRefreshModal);
+document.getElementById('btnErrorRetry').addEventListener('click', function() {
+    document.getElementById('refreshError').style.display = 'none';
+    startScrapeAndTrack();
+});
+document.getElementById('btnErrorContinue').addEventListener('click', function() {
+    var cb = _refreshOnProceed;
+    hideRefreshModal();
+    if (cb) cb();
+});
+document.getElementById('btnErrorCancel').addEventListener('click', hideRefreshModal);
+document.getElementById('refreshModal').addEventListener('click', function(e) {
+    if (e.target === e.currentTarget) hideRefreshModal();
+});
+
 // --- Keyboard shortcuts ---
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+        if (document.getElementById('refreshModal').style.display === 'flex') { hideRefreshModal(); return; }
         if (document.getElementById('pwModal').style.display === 'flex') closePwModal();
         if (document.getElementById('inactivityModal').style.display === 'flex') {
             document.getElementById('keepAliveBtn').click();

@@ -2,6 +2,16 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.0] - 2026-04-07
+
+### Added
+- "Refresh data?" confirmation popup on all one-time report triggers (Send Now, Preview, Export PDF)
+- Live progress bar with stage-by-stage tracking during data scrape
+- Progress polling API endpoints (`/api/scrape/start`, `/api/scrape/progress/<job_id>`)
+- Thread-safe `ProgressStore` for background scrape job tracking (`progress.py`)
+- Fresh cache detection (60s window) to avoid double-scraping after UI-triggered refresh
+- Scraper progress callback support via `progress_callback` parameter on `scrape()`
+
 ## [0.9.6] - 2026-04-06
 
 ### Fixed
