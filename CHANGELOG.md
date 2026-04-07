@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.7] - 2026-04-07
+
+### Fixed
+- Fix get_next_run_times to compute next fire times from schedule config when scheduler jobs are unavailable (jobs pending before start())
+
 ## [0.10.6] - 2026-04-07
 
 ### Fixed
