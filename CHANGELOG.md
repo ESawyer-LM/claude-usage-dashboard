@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.1] - 2026-04-07
+
+### Fixed
+- Fixed report not opening after scrape refresh completes (browser popup blocker triggered by setTimeout delay)
+
 ## [0.10.0] - 2026-04-07
 
 ### Added
