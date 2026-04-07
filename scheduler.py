@@ -120,9 +120,16 @@ def run_report_job(schedule_id: str, force: bool = False):
     is_custom = report_type.startswith("custom:")
 
     try:
-        # 1. Scrape data
+        # 1. Scrape data (use fresh cache if available from recent UI-triggered scrape)
         logger.info("Step 1/4: Scraping data...")
-        data = scraper.scrape()
+        data = None
+        if force:
+            from admin import get_cached_data_if_fresh
+            data = get_cached_data_if_fresh()
+            if data:
+                logger.info("Using fresh cached data (scraped <60s ago)")
+        if not data:
+            data = scraper.scrape()
 
         if is_custom:
             # Custom report pipeline

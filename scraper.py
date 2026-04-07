@@ -321,10 +321,39 @@ def _rankings_to_top_users(rankings: list[dict], members: list[dict]) -> list[di
 
 
 # ---------------------------------------------------------------------------
+# Progress tracking stages
+# ---------------------------------------------------------------------------
+SCRAPER_STAGES = [
+    {"key": "init",         "label": "Initializing session",        "weight": 10},
+    {"key": "members",      "label": "Fetching member data",        "weight": 15},
+    {"key": "seats",        "label": "Fetching seats & subscription","weight": 10},
+    {"key": "activity",     "label": "Fetching activity metrics",   "weight": 15},
+    {"key": "usage",        "label": "Fetching usage metrics",      "weight": 15},
+    {"key": "claude_code",  "label": "Fetching Claude Code stats",  "weight": 20},
+    {"key": "processing",   "label": "Processing & caching data",   "weight": 10},
+    {"key": "complete",     "label": "Scrape complete",             "weight":  5},
+]
+# Weights sum to 100
+
+
+def _report_progress(callback, stage_key, cumulative_percent, label):
+    """Call progress callback if provided."""
+    if callback:
+        callback(stage_key, cumulative_percent, label)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-def scrape() -> dict:
-    """Collect all dashboard data. Falls back to cache on failure."""
+def scrape(progress_callback=None) -> dict:
+    """Collect all dashboard data. Falls back to cache on failure.
+
+    Args:
+        progress_callback: Optional callable(stage_key, percent_complete, label)
+            called at each stage boundary to report progress.
+    """
+    _report_progress(progress_callback, "init", 0, "Initializing session")
+
     settings = config.load_settings()
     cookie = settings.get("session_cookie", "")
     if not cookie:
@@ -340,11 +369,13 @@ def scrape() -> dict:
         logger.info(f"Organization ID: {org_id}")
 
         # --- Members ---
+        _report_progress(progress_callback, "members", 10, "Fetching member data")
         logger.info("Fetching members...")
         members = _fetch_members(cookie, org_id)
         logger.info(f"Found {len(members)} members")
 
         # --- Counts & limits ---
+        _report_progress(progress_callback, "seats", 25, "Fetching seats & subscription")
         logger.info("Fetching counts and seat limits...")
         counts = _fetch_member_counts(cookie, org_id)
         limits = _fetch_seat_limits(cookie, org_id)
@@ -363,6 +394,7 @@ def scrape() -> dict:
         plan_tier = "Team" if ("team_standard" in seat_tiers or "team_tier_1" in seat_tiers) else "Standard"
 
         # --- Activity overview (DAU/WAU/MAU/utilization) ---
+        _report_progress(progress_callback, "activity", 35, "Fetching activity metrics")
         logger.info("Fetching activity overview...")
         activity_overview = _fetch_activity_overview(cookie, org_id)
         if activity_overview:
@@ -374,6 +406,7 @@ def scrape() -> dict:
             )
 
         # --- Usage overview (chats/day, projects, artifacts) ---
+        _report_progress(progress_callback, "usage", 50, "Fetching usage metrics")
         logger.info("Fetching usage overview...")
         usage_overview = _fetch_usage_overview(cookie, org_id)
         if usage_overview:
@@ -420,6 +453,7 @@ def scrape() -> dict:
         logger.info(f"Top users by chats: {len(top_chats)}")
 
         # --- Claude Code overview (sessions, lines, cost, commits, PRs) ---
+        _report_progress(progress_callback, "claude_code", 65, "Fetching Claude Code stats")
         logger.info("Fetching Claude Code metrics...")
         cc_overview = _fetch_claude_code_overview(cookie, org_id)
         cc_summary = cc_overview.get("summary", {})
@@ -469,6 +503,8 @@ def scrape() -> dict:
             value = dp.get("total_lines_accepted", dp.get("lines_accepted", dp.get("value", 0)))
             cc_lines_chart["data"].append(int(value) if value else 0)
 
+        _report_progress(progress_callback, "processing", 85, "Processing & caching data")
+
         now = datetime.now(timezone.utc).isoformat()
         result = {
             "scraped_at": now,
@@ -495,6 +531,7 @@ def scrape() -> dict:
         }
 
         config.save_cache(result)
+        _report_progress(progress_callback, "complete", 100, "Scrape complete")
         logger.info(
             f"Data collection complete: {len(members)} members, "
             f"{len(daily_chats['data'])} days of chats, "
