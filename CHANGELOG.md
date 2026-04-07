@@ -2,6 +2,15 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.6] - 2026-04-07
+
+### Fixed
+- Fix "Next Scheduled Run" always showing blank by handling None return from _format_time()
+- Add next run time and per-schedule status updates to 30-second auto-refresh
+
+### Removed
+- Remove "LM" logo badge from all page headers (admin, login, dashboard, logs, reports) and PDF banner
+
 ## [0.10.5] - 2026-04-07
 
 ### Added
