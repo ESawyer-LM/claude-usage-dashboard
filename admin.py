@@ -45,7 +45,7 @@ def get_cached_data_if_fresh(max_age_seconds=60):
 def _format_time(iso_str, tz_str="America/Chicago"):
     """Format an ISO datetime string for display in the given timezone."""
     if not iso_str or iso_str in ("Never", "N/A"):
-        return iso_str
+        return iso_str or "N/A"
     try:
         tz = ZoneInfo(tz_str)
         dt = datetime.fromisoformat(iso_str)
@@ -663,11 +663,6 @@ _BASE_CSS = """
         align-items: center; justify-content: space-between; color: white;
     }
     .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
-    .navbar-brand .badge {
-        width: 32px; height: 32px; border-radius: 50%; background: white;
-        display: flex; align-items: center; justify-content: center;
-        font-weight: 700; font-size: 12px; color: #C8102E;
-    }
     .navbar a { color: white; text-decoration: none; font-size: 13px; opacity: 0.9; }
     .navbar a:hover { opacity: 1; }
     .container { max-width: 960px; margin: 0 auto; padding: 24px; }
@@ -813,11 +808,9 @@ LOGIN_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Login — Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """
     .login-box { max-width: 400px; margin: 80px auto; }
-    .login-badge { width: 56px; height: 56px; border-radius: 50%; background: #C8102E; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px; color: white; margin: 0 auto 20px; }
 </style></head><body>
-<div class="navbar"><a class="navbar-brand" href="/login"><div class="badge">LM</div> Claude Dashboard Admin</a></div>
+<div class="navbar"><a class="navbar-brand" href="/login">Claude Dashboard Admin</a></div>
 <div class="container"><div class="login-box"><div class="card" style="text-align:center;">
-    <div class="login-badge">LM</div>
     <h2 style="border:none;padding:0;margin-bottom:4px;">Sign In</h2>
     <p style="color:#6b7280;font-size:13px;margin-bottom:16px;">Claude Usage Dashboard Administration</p>
     {% if error %}<div class="alert alert-error" style="text-align:left;">{{ error }}</div>{% endif %}
@@ -835,7 +828,7 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Claude Dashboard Admin</title>
 <style>""" + _BASE_CSS + """</style></head><body>
 <div class="navbar">
-    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
+    <a class="navbar-brand" href="/dashboard">Claude Dashboard Admin</a>
     <div class="nav-dropdown" id="navDropdown">
         <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
         <div class="nav-dropdown-menu">
@@ -1762,6 +1755,23 @@ setInterval(function() {
             if (d.timezone) {
                 document.getElementById('timezoneInput').value = d.timezone;
             }
+            // Update "Next Scheduled Run" from schedule data
+            if (d.schedules) {
+                var nextTimes = d.schedules
+                    .filter(function(s) { return s.enabled && s.next_run && s.next_run !== 'N/A'; })
+                    .map(function(s) { return s.next_run; })
+                    .sort();
+                document.getElementById('nextRun').textContent = nextTimes.length ? nextTimes[0] : 'N/A';
+                // Update per-schedule next/last spans
+                d.schedules.forEach(function(s) {
+                    var card = document.getElementById('sched-' + s.id);
+                    if (!card) return;
+                    var spans = card.querySelectorAll('span[style*="margin-left:auto"]');
+                    if (spans.length) {
+                        spans[spans.length - 1].textContent = 'Next: ' + (s.next_run || 'N/A') + ' \u00b7 Last: ' + (s.last_sent || 'Never');
+                    }
+                });
+            }
         })
         .catch(() => {});
 }, 30000);
@@ -1983,7 +1993,7 @@ LOGS_TEMPLATE = """<!DOCTYPE html>
     }
 </style></head><body>
 <div class="navbar">
-    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
+    <a class="navbar-brand" href="/dashboard">Claude Dashboard Admin</a>
     <div class="nav-dropdown" id="navDropdown">
         <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
         <div class="nav-dropdown-menu">
