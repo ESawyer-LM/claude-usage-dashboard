@@ -1896,13 +1896,9 @@ function pollScrapeProgress(jobId) {
 
                 if (data.status === 'complete') {
                     clearInterval(_refreshPollTimer); _refreshPollTimer = null;
-                    document.getElementById('refreshProgress').style.display = 'none';
-                    document.getElementById('refreshDone').style.display = '';
                     var cb = _refreshOnProceed;
-                    setTimeout(function() {
-                        hideRefreshModal();
-                        if (cb) cb();
-                    }, 1200);
+                    hideRefreshModal();
+                    if (cb) cb();
                 } else if (data.status === 'error') {
                     clearInterval(_refreshPollTimer); _refreshPollTimer = null;
                     showScrapeError(data.error || 'Scrape failed');
