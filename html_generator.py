@@ -206,9 +206,13 @@ def generate_html(data: dict, report_type: str = None) -> str:
         email_val = _escape(m.get("email", ""))
         role = _escape(m.get("role", "User"))
         status = m.get("status", "Active")
-        initials = _escape(_get_initials(m.get("name", "")))
+        seat_tier = m.get("seat_tier", "team_standard")
+        is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
+        tier_label = "Premium" if is_premium else "Standard"
         projects_mtd = project_lookup.get(m.get("name", ""), 0)
         artifacts_mtd = artifact_lookup.get(m.get("name", ""), 0)
+
+        premium_badge = '<span style="display:inline-block;font-size:11px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:1px 7px;border-radius:8px;margin-left:6px;vertical-align:middle;">Premium</span>' if is_premium else ""
 
         if status == "Active":
             badge = '<span style="background:#dcfce7;color:#15803d;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;">Active</span>'
@@ -216,22 +220,21 @@ def generate_html(data: dict, report_type: str = None) -> str:
             badge = '<span style="background:#fef3c7;color:#b45309;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;">Pending</span>'
 
         role_style = 'color:#C8102E;font-weight:600;' if 'owner' in role.lower() else 'color:#374151;'
+        tier_style = 'color:#7c3aed;font-weight:600;' if is_premium else 'color:#6b7280;font-size:12px;'
+        proj_style = 'color:#C8102E;font-weight:700;' if projects_mtd > 0 else 'color:#6b7280;'
+        art_style = 'color:#C8102E;font-weight:700;' if artifacts_mtd > 0 else 'color:#6b7280;'
 
         member_rows += f"""
                 <tr data-name="{name.lower()}" data-email="{email_val.lower()}" data-status="{_escape(status).lower()}">
-                    <td style="padding:12px 16px;">
-                        <div style="display:flex;align-items:center;gap:12px;">
-                            <div style="width:36px;height:36px;border-radius:50%;background:#C8102E;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{initials}</div>
-                            <div>
-                                <div style="font-weight:500;color:#111827;">{name}</div>
-                                <div style="font-size:12px;color:#6b7280;">{email_val}</div>
-                            </div>
-                        </div>
+                    <td style="padding:10px 16px;">
+                        <div style="font-weight:600;font-size:13px;color:#111827;">{name}{premium_badge}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:1px;">{email_val}</div>
                     </td>
-                    <td style="padding:12px 16px;{role_style}">{role}</td>
-                    <td style="padding:12px 16px;">{badge}</td>
-                    <td style="padding:12px 16px;text-align:center;color:#374151;">{projects_mtd}</td>
-                    <td style="padding:12px 16px;text-align:center;color:#374151;">{artifacts_mtd}</td>
+                    <td style="padding:10px 16px;{role_style}">{role}</td>
+                    <td style="padding:10px 16px;{tier_style}">{tier_label}</td>
+                    <td style="padding:10px 16px;">{badge}</td>
+                    <td style="padding:10px 16px;text-align:center;{proj_style}">{projects_mtd}</td>
+                    <td style="padding:10px 16px;text-align:center;{art_style}">{artifacts_mtd}</td>
                 </tr>"""
 
     # Claude Code user table rows
@@ -395,6 +398,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
             padding: 8px 14px; border: 1px solid #d1d5db;
             border-radius: 8px; font-size: 14px; outline: none; background: white;
         }}
+        .table-card table {{ border: 1px solid #e5e7eb; }}
         table {{ width: 100%; border-collapse: collapse; }}
         thead th {{
             padding: 10px 16px; text-align: left; font-size: 12px;
@@ -404,7 +408,9 @@ def generate_html(data: dict, report_type: str = None) -> str:
         }}
         thead th:hover {{ color: #C8102E; }}
         tbody tr {{ border-bottom: 1px solid #f3f4f6; }}
-        tbody tr:hover {{ background: #fafafa; }}
+        tbody tr:nth-child(odd) {{ background: #ffffff; }}
+        tbody tr:nth-child(even) {{ background: #f3f4f6; }}
+        tbody tr:hover {{ background: #eef0f3; }}
 
         /* Footer */
         .footer {{
@@ -583,14 +589,15 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     <option value="pending">Pending</option>
                 </select>
             </div>
-            <table>
+            <table class="member-table">
                 <thead>
                     <tr>
-                        <th onclick="sortTable(0)">Member</th>
-                        <th onclick="sortTable(1)">Role</th>
-                        <th onclick="sortTable(2)">Status</th>
-                        <th onclick="sortTable(3)" style="text-align:center;">Projects MTD</th>
-                        <th onclick="sortTable(4)" style="text-align:center;">Artifacts MTD</th>
+                        <th onclick="sortTable(0)" style="width:30%;">Member</th>
+                        <th onclick="sortTable(1)" style="width:14%;">Role</th>
+                        <th onclick="sortTable(2)" style="width:12%;">Tier</th>
+                        <th onclick="sortTable(3)" style="width:14%;">Status</th>
+                        <th onclick="sortTable(4)" style="text-align:center;width:15%;">Projects MTD</th>
+                        <th onclick="sortTable(5)" style="text-align:center;width:15%;">Artifacts MTD</th>
                     </tr>
                 </thead>
                 <tbody id="memberTableBody">
@@ -927,7 +934,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         {"" if "members" not in sections else f'''
         // --- Table Sorting ---
-        let sortDir = [1, 1, 1, 1, 1];
+        let sortDir = [1, 1, 1, 1, 1, 1];
         function sortTable(col) {{
             const tbody = document.getElementById('memberTableBody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
@@ -935,7 +942,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
             rows.sort((a, b) => {{
                 let aVal = a.cells[col].textContent.trim();
                 let bVal = b.cells[col].textContent.trim();
-                if (col >= 3) {{ // Numeric columns
+                if (col >= 4) {{ // Numeric columns (Projects, Artifacts)
                     return (parseInt(aVal) - parseInt(bVal)) * sortDir[col];
                 }}
                 return aVal.localeCompare(bVal) * sortDir[col];

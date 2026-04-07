@@ -2,6 +2,26 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.5] - 2026-04-07
+
+### Added
+- Stat mini-boxes below daily_chats chart (total, peak, avg, team engagement)
+- Stat mini-boxes below wau_trend chart (current WAU, WoW change, utilization rate, growth)
+- WoW % change annotations between WAU chart x-axis data points
+- Section headers with horizontal rule for Activity, WAU, Claude Code, and Member sections
+- Tier column in member directory table (both report builder and standard dashboard)
+- Premium badge inline with member name for premium-tier users
+- Search, filter, and sort functionality for report builder member directory
+- Graceful degradation for empty WAU data and missing total_seats
+
+### Changed
+- stats_row now matches PDF layout: Total Seats, Active Members, Pending Invites, Seat Tier with dynamic premium member sub-text
+- Member directory uses compact two-line layout (name + email) instead of avatar circles
+- Top users bar charts use 5-color red gradient instead of single color
+- Table styling: alternating row shading, outer border, column width guidance
+- CSS refactored to use custom properties (--red, --border, --muted, etc.)
+- Projects/Artifacts cells use conditional formatting (red bold if > 0, gray if 0)
+
 ## [0.10.1] - 2026-04-07
 
 ### Fixed

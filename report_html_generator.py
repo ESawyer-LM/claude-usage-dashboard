@@ -52,6 +52,11 @@ def _trend_badge(change_percent) -> str:
     )
 
 
+def _section_header(text: str) -> str:
+    """Return HTML for a styled section divider matching the PDF SectionHeader."""
+    return f'<div class="section-title">{_escape(text).upper()}</div>'
+
+
 # ---------------------------------------------------------------------------
 # Date range utilities
 # ---------------------------------------------------------------------------
@@ -246,30 +251,47 @@ def _render_stats_row(data, comp, idx):
     total_seats = data.get("total_seats", len(members))
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
-    plan_tier = data.get("plan_tier", "Standard")
     assigned = active_count + pending_count
     available = total_seats - assigned
+    plan_tier = data.get("plan_tier", "Standard")
+
+    # Premium member sub-text (matches PDF logic)
+    premium_members = [m for m in members
+                       if "tier_1" in m.get("seat_tier", "").lower()
+                       or "premium" in m.get("seat_tier", "").lower()]
+    if premium_members:
+        names = []
+        for m in premium_members[:3]:
+            parts = m.get("name", "").split()
+            if len(parts) > 1:
+                names.append(f"{parts[0]} {parts[-1][0]}.")
+            else:
+                names.append(m.get("name", ""))
+        tier_subtitle = f"+{len(premium_members)} Premium ({', '.join(names)})"
+    else:
+        tier_subtitle = "All standard seats"
+
     return f"""
     <div class="stats-row" style="grid-template-columns:repeat(4,1fr);">
         <div class="stat-card">
             <div class="stat-label">Total Seats</div>
-            <div class="stat-value" style="color:#C8102E;">{total_seats}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">{available} available &middot; {assigned} assigned</div>
+            <div class="stat-value" style="color:var(--red);">{total_seats}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">{available} available &middot; {assigned} assigned</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Active Members</div>
-            <div class="stat-value" style="color:#16a34a;">{active_count}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Onboarded &amp; using Claude</div>
+            <div class="stat-value" style="color:var(--active);">{active_count}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">Onboarded &amp; using Claude</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Pending Invites</div>
-            <div class="stat-value" style="color:#d97706;">{pending_count}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Haven't accepted invite yet</div>
+            <div class="stat-value" style="color:var(--pending);">{pending_count}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">Haven&#39;t accepted invite yet</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Seat Tier</div>
-            <div class="stat-value" style="color:#C8102E;">{_escape(plan_tier)}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Plan type</div>
+            <div class="stat-value" style="color:var(--red);">{_escape(plan_tier)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px;">{_escape(tier_subtitle)}</div>
         </div>
     </div>"""
 
@@ -353,67 +375,187 @@ def _render_tier_pie(data, comp, idx):
 def _render_daily_chats(data, comp, idx):
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
     canvas_id = f"dailyChats_{idx}"
+    mini_id = f"dcMini_{idx}"
     return f"""
     <div class="chart-card">
         <h3>Daily Chat Activity</h3>
         <canvas id="{canvas_id}"></canvas>
+        <div class="stat-mini-row" id="{mini_id}">
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_total">—</div><div class="mini-label" id="{mini_id}_total_lbl">Total chats</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_peak">—</div><div class="mini-label">Peak daily chats</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_avg">—</div><div class="mini-label">Avg chats / day</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_eng">—</div><div class="mini-label">Team engagement</div></div>
+        </div>
     </div>""", f"""
-    new Chart(document.getElementById('{canvas_id}'), {{
-        type: 'line',
-        data: {{
-            labels: {json.dumps(daily_chats.get("labels", []))},
-            datasets: [{{
-                label: 'Daily Chats',
-                data: {json.dumps(daily_chats.get("data", []))},
-                borderColor: '#C8102E',
-                backgroundColor: 'rgba(200, 16, 46, 0.08)',
-                fill: true, tension: 0.3,
-                pointBackgroundColor: '#ffffff', pointBorderColor: '#C8102E',
-                pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
-            }}]
-        }},
-        options: {{
-            responsive: true, maintainAspectRatio: false,
-            plugins: {{ legend: {{ display: false }} }},
-            scales: {{
-                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
-                x: {{ grid: {{ display: false }} }}
+    (function() {{
+        var chatData = {json.dumps(daily_chats.get("data", []))};
+        new Chart(document.getElementById('{canvas_id}'), {{
+            type: 'line',
+            data: {{
+                labels: {json.dumps(daily_chats.get("labels", []))},
+                datasets: [{{
+                    label: 'Daily Chats',
+                    data: chatData,
+                    borderColor: '#C8102E',
+                    backgroundColor: 'rgba(200, 16, 46, 0.08)',
+                    fill: true, tension: 0.3,
+                    pointBackgroundColor: '#ffffff', pointBorderColor: '#C8102E',
+                    pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
+                }}]
+            }},
+            options: {{
+                responsive: true, maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    x: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+        if (chatData.length > 0) {{
+            var total = chatData.reduce(function(a,b){{ return a+b; }}, 0);
+            var peak = Math.max.apply(null, chatData);
+            var avg = (total / chatData.length).toFixed(1);
+            document.getElementById('{mini_id}_total').textContent = total;
+            document.getElementById('{mini_id}_total_lbl').textContent = 'Total chats (' + chatData.length + ' days)';
+            document.getElementById('{mini_id}_peak').textContent = peak;
+            document.getElementById('{mini_id}_avg').textContent = avg;
+            var engEl = document.getElementById('{mini_id}_eng');
+            if (parseFloat(avg) >= 3) {{
+                engEl.textContent = '\\u2191 Active';
+                engEl.style.color = 'var(--active)';
+            }} else {{
+                engEl.textContent = '\\u2192 Moderate';
+                engEl.style.color = 'var(--pending)';
             }}
         }}
-    }});"""
+    }})();"""
 
 
 def _render_wau_trend(data, comp, idx):
     wau_chart = data.get("wau_chart", {"labels": [], "data": []})
+    wau_data = wau_chart.get("data", [])
+    wau_labels = wau_chart.get("labels", [])
+    total_seats = data.get("total_seats", 0)
     canvas_id = f"wauTrend_{idx}"
+    mini_id = f"wauMini_{idx}"
+
+    # Graceful degradation: no data → placeholder
+    if not wau_data:
+        return f"""
+    <div class="chart-card">
+        <h3>Weekly Active Users Trend</h3>
+        <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px;">No WAU data available</div>
+    </div>"""
+
     return f"""
     <div class="chart-card">
         <h3>Weekly Active Users Trend</h3>
         <canvas id="{canvas_id}"></canvas>
+        <div class="stat-mini-row" id="{mini_id}">
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_cur">—</div><div class="mini-label">Current WAU</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_wow">—</div><div class="mini-label">WoW change</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_util">—</div><div class="mini-label">Utilization rate</div></div>
+            <div class="stat-mini-box"><div class="mini-value" id="{mini_id}_growth">—</div><div class="mini-label" id="{mini_id}_growth_lbl">Growth</div></div>
+        </div>
     </div>""", f"""
-    new Chart(document.getElementById('{canvas_id}'), {{
-        type: 'line',
-        data: {{
-            labels: {json.dumps(wau_chart.get("labels", []))},
-            datasets: [{{
-                label: 'WAU',
-                data: {json.dumps(wau_chart.get("data", []))},
-                borderColor: '#2563eb',
-                backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                fill: true, tension: 0.3,
-                pointBackgroundColor: '#ffffff', pointBorderColor: '#2563eb',
-                pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
-            }}]
-        }},
-        options: {{
-            responsive: true, maintainAspectRatio: false,
-            plugins: {{ legend: {{ display: false }} }},
-            scales: {{
-                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
-                x: {{ grid: {{ display: false }} }}
+    (function() {{
+        var wauData = {json.dumps(wau_data)};
+        var wauLabels = {json.dumps(wau_labels)};
+        var totalSeats = {total_seats};
+
+        var wowPlugin_{idx} = {{
+            id: 'wowAnnotations_{idx}',
+            afterDraw: function(chart) {{
+                var ctx = chart.ctx;
+                var xAxis = chart.scales.x;
+                var chartArea = chart.chartArea;
+                ctx.save();
+                ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'center';
+                for (var i = 1; i < wauData.length; i++) {{
+                    var prev = wauData[i-1];
+                    var cur = wauData[i];
+                    if (prev === 0) continue;
+                    var pct = ((cur - prev) / prev * 100);
+                    var x0 = xAxis.getPixelForValue(i-1);
+                    var x1 = xAxis.getPixelForValue(i);
+                    var midX = (x0 + x1) / 2;
+                    var y = chartArea.bottom + 18;
+                    if (pct > 0) {{
+                        ctx.fillStyle = '#16a34a';
+                        ctx.fillText('+' + pct.toFixed(0) + '%', midX, y);
+                    }} else if (pct < 0) {{
+                        ctx.fillStyle = '#C8102E';
+                        ctx.fillText(pct.toFixed(0) + '%', midX, y);
+                    }} else {{
+                        ctx.fillStyle = '#6b7280';
+                        ctx.fillText('0%', midX, y);
+                    }}
+                }}
+                ctx.restore();
             }}
+        }};
+
+        new Chart(document.getElementById('{canvas_id}'), {{
+            type: 'line',
+            data: {{
+                labels: wauLabels,
+                datasets: [{{
+                    label: 'WAU',
+                    data: wauData,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                    fill: true, tension: 0.3,
+                    pointBackgroundColor: '#ffffff', pointBorderColor: '#2563eb',
+                    pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
+                }}]
+            }},
+            options: {{
+                responsive: true, maintainAspectRatio: false,
+                layout: {{ padding: {{ bottom: 24 }} }},
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    x: {{ grid: {{ display: false }} }}
+                }}
+            }},
+            plugins: [wowPlugin_{idx}]
+        }});
+
+        // Populate stat mini-boxes
+        var curWau = wauData[wauData.length - 1];
+        document.getElementById('{mini_id}_cur').textContent = curWau;
+        document.getElementById('{mini_id}_cur').style.color = 'var(--red)';
+
+        // WoW change
+        if (wauData.length >= 2) {{
+            var prevWau = wauData[wauData.length - 2];
+            var wowPct = prevWau > 0 ? ((curWau - prevWau) / prevWau * 100) : 0;
+            var wowEl = document.getElementById('{mini_id}_wow');
+            wowEl.textContent = (wowPct >= 0 ? '+' : '') + wowPct.toFixed(1) + '%';
+            wowEl.style.color = wowPct >= 0 ? 'var(--active)' : 'var(--red)';
         }}
-    }});"""
+
+        // Utilization rate
+        var utilEl = document.getElementById('{mini_id}_util');
+        if (totalSeats > 0) {{
+            utilEl.textContent = (curWau / totalSeats * 100).toFixed(1) + '%';
+        }} else {{
+            utilEl.textContent = 'N/A';
+        }}
+        utilEl.style.color = 'var(--text)';
+
+        // Growth since first data point
+        var firstWau = wauData[0];
+        if (firstWau > 0) {{
+            var growthPct = ((curWau - firstWau) / firstWau * 100);
+            var growthEl = document.getElementById('{mini_id}_growth');
+            growthEl.textContent = (growthPct >= 0 ? '+' : '') + growthPct.toFixed(0) + '%';
+            growthEl.style.color = growthPct >= 0 ? 'var(--active)' : 'var(--red)';
+            document.getElementById('{mini_id}_growth_lbl').textContent = 'Growth since ' + wauLabels[0];
+        }}
+    }})();"""
 
 
 def _render_wau_stats_tile(data, comp, idx):
@@ -571,7 +713,7 @@ def _render_top_users_chats(data, comp, idx):
             labels: {json.dumps([u["name"] for u in top_chats])},
             datasets: [{{
                 label: 'Chats', data: {json.dumps([u["count"] for u in top_chats])},
-                backgroundColor: '#C8102E', borderRadius: 4, barThickness: 20
+                backgroundColor: ["#C8102E","#e05070","#e87090","#f090a8","#f8afc0"].slice(0, {len(top_chats)}), borderRadius: 4, barThickness: 20
             }}]
         }},
         options: {{
@@ -599,7 +741,7 @@ def _render_top_users_projects(data, comp, idx):
             labels: {json.dumps([u["name"] for u in top_projects])},
             datasets: [{{
                 label: 'Projects', data: {json.dumps([u["count"] for u in top_projects])},
-                backgroundColor: '#C8102E', borderRadius: 4, barThickness: 20
+                backgroundColor: ["#C8102E","#e05070","#e87090","#f090a8","#f8afc0"].slice(0, {len(top_projects)}), borderRadius: 4, barThickness: 20
             }}]
         }},
         options: {{
@@ -627,7 +769,7 @@ def _render_top_users_artifacts(data, comp, idx):
             labels: {json.dumps([u["name"] for u in top_artifacts])},
             datasets: [{{
                 label: 'Artifacts', data: {json.dumps([u["count"] for u in top_artifacts])},
-                backgroundColor: '#C8102E', borderRadius: 4, barThickness: 20
+                backgroundColor: ["#C8102E","#e05070","#e87090","#f090a8","#f8afc0"].slice(0, {len(top_artifacts)}), borderRadius: 4, barThickness: 20
             }}]
         }},
         options: {{
@@ -870,44 +1012,104 @@ def _render_member_directory(data, comp, idx):
         email_val = _escape(m.get("email", ""))
         role = _escape(m.get("role", "User"))
         status = m.get("status", "Active")
-        initials = _escape(_get_initials(m.get("name", "")))
+        seat_tier = m.get("seat_tier", "team_standard")
+        is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
+        tier_label = "Premium" if is_premium else "Standard"
         projects_mtd = project_lookup.get(m.get("name", ""), 0)
         artifacts_mtd = artifact_lookup.get(m.get("name", ""), 0)
+
+        # Premium badge inline with name
+        premium_badge = '<span class="tier-tag">Premium</span>' if is_premium else ""
+
+        # Status badge
         badge = ('<span style="background:#dcfce7;color:#15803d;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;">Active</span>'
                  if status == "Active" else
                  '<span style="background:#fef3c7;color:#b45309;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;">Pending</span>')
-        role_style = 'color:#C8102E;font-weight:600;' if 'owner' in role.lower() else 'color:#374151;'
+
+        # Role styling
+        role_style = 'color:var(--red);font-weight:600;' if 'owner' in role.lower() else 'color:var(--text);'
+
+        # Tier cell styling
+        tier_style = 'color:var(--purple);font-weight:600;' if is_premium else 'color:var(--muted);font-size:12px;'
+
+        # Projects/Artifacts conditional formatting
+        proj_style = 'color:var(--red);font-weight:700;' if projects_mtd > 0 else 'color:var(--muted);'
+        art_style = 'color:var(--red);font-weight:700;' if artifacts_mtd > 0 else 'color:var(--muted);'
+
         rows += f"""
-            <tr>
-                <td style="padding:12px 16px;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <div style="width:36px;height:36px;border-radius:50%;background:#C8102E;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{initials}</div>
-                        <div>
-                            <div style="font-weight:500;color:#111827;">{name}</div>
-                            <div style="font-size:12px;color:#6b7280;">{email_val}</div>
-                        </div>
-                    </div>
+            <tr data-name="{_escape(m.get('name', '').lower())}" data-email="{_escape(m.get('email', '').lower())}" data-status="{status.lower()}">
+                <td style="padding:10px 16px;">
+                    <div style="font-weight:600;font-size:13px;color:#111827;">{name}{premium_badge}</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:1px;">{email_val}</div>
                 </td>
-                <td style="padding:12px 16px;{role_style}">{role}</td>
-                <td style="padding:12px 16px;">{badge}</td>
-                <td style="padding:12px 16px;text-align:center;color:#374151;">{projects_mtd}</td>
-                <td style="padding:12px 16px;text-align:center;color:#374151;">{artifacts_mtd}</td>
+                <td style="padding:10px 16px;{role_style}">{role}</td>
+                <td style="padding:10px 16px;{tier_style}">{tier_label}</td>
+                <td style="padding:10px 16px;">{badge}</td>
+                <td style="padding:10px 16px;text-align:center;{proj_style}">{projects_mtd}</td>
+                <td style="padding:10px 16px;text-align:center;{art_style}">{artifacts_mtd}</td>
             </tr>"""
 
-    return f"""
+    html = f"""
     <div class="table-card">
         <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Member Directory</h3>
-        <table>
+        <div class="table-controls">
+            <input type="text" id="memberSearch_{idx}" placeholder="Search by name or email...">
+            <select id="memberStatusFilter_{idx}">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+            </select>
+        </div>
+        <table class="member-table">
             <thead>
                 <tr>
-                    <th>Member</th><th>Role</th><th>Status</th>
-                    <th style="text-align:center;">Projects MTD</th>
-                    <th style="text-align:center;">Artifacts MTD</th>
+                    <th onclick="sortMemberTable_{idx}(0)">Member</th>
+                    <th onclick="sortMemberTable_{idx}(1)">Role</th>
+                    <th onclick="sortMemberTable_{idx}(2)">Tier</th>
+                    <th onclick="sortMemberTable_{idx}(3)">Status</th>
+                    <th onclick="sortMemberTable_{idx}(4)" style="text-align:center;">Projects MTD</th>
+                    <th onclick="sortMemberTable_{idx}(5)" style="text-align:center;">Artifacts MTD</th>
                 </tr>
             </thead>
-            <tbody>{rows}</tbody>
+            <tbody id="memberTbody_{idx}">{rows}</tbody>
         </table>
     </div>"""
+
+    script = f"""
+    (function() {{
+        var sortDir = [1, 1, 1, 1, 1, 1];
+        window.sortMemberTable_{idx} = function(col) {{
+            var tbody = document.getElementById('memberTbody_{idx}');
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            sortDir[col] *= -1;
+            rows.sort(function(a, b) {{
+                var aVal = a.cells[col].textContent.trim();
+                var bVal = b.cells[col].textContent.trim();
+                if (col >= 4) {{
+                    return (parseInt(aVal) - parseInt(bVal)) * sortDir[col];
+                }}
+                return aVal.localeCompare(bVal) * sortDir[col];
+            }});
+            rows.forEach(function(r) {{ tbody.appendChild(r); }});
+        }};
+        function filterMembers() {{
+            var search = document.getElementById('memberSearch_{idx}').value.toLowerCase();
+            var status = document.getElementById('memberStatusFilter_{idx}').value;
+            var rows = document.querySelectorAll('#memberTbody_{idx} tr');
+            rows.forEach(function(row) {{
+                var name = row.getAttribute('data-name') || '';
+                var email = row.getAttribute('data-email') || '';
+                var rowStatus = row.getAttribute('data-status') || '';
+                var matchesSearch = name.indexOf(search) !== -1 || email.indexOf(search) !== -1;
+                var matchesStatus = !status || rowStatus === status;
+                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            }});
+        }}
+        document.getElementById('memberSearch_{idx}').addEventListener('input', filterMembers);
+        document.getElementById('memberStatusFilter_{idx}').addEventListener('change', filterMembers);
+    }})();"""
+
+    return html, script
 
 
 def _render_executive_summary(data, comp, idx, components=None):
@@ -993,8 +1195,41 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         body_parts.append(f'<div class="pie-row">{"".join(pie_buf)}</div>')
         pie_buf.clear()
 
+    # Section header mapping — group key → header text
+    _SECTION_GROUP = {
+        "activity_metrics": "activity",
+        "daily_chats": "activity",
+        "usage_stats": "activity",
+        "dau_chart": "activity",
+        "wau_trend": "wau",
+        "wau_stats_tile": "wau",
+        "claude_code_stats": "claude_code",
+        "member_directory": "members",
+    }
+    _SECTION_TEXT = {
+        "activity": "Activity Analytics \u00b7 Claude.ai/Analytics \u00b7 MTD \u00b7 Updated Daily",
+        "wau": "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window",
+        "members": "All Members",
+    }
+    seen_sections = set()
+
     for idx, comp in enumerate(components):
         key = comp.get("key")
+
+        # Inject section header if this component starts a new section
+        section_group = _SECTION_GROUP.get(key)
+        if section_group and section_group not in seen_sections:
+            seen_sections.add(section_group)
+            if section_group == "claude_code":
+                cc_summary = data.get("claude_code", {}).get("summary", {})
+                cc_active = cc_summary.get("active_users", 0)
+                month_str = datetime.now().strftime("%B %Y")
+                body_parts.append(_section_header(
+                    f"Claude Code \u00b7 {month_str} \u00b7 {cc_active} Active User(s)"
+                ))
+            else:
+                body_parts.append(_section_header(_SECTION_TEXT[section_group]))
+
         # Apply date range filtering — per-component override or global
         comp_data = data
         comp_range = comp.get("date_range")
@@ -1077,21 +1312,26 @@ def generate_report_html(data: dict, report_config: dict) -> str:
     <title>{title} \u2014 Claude Usage Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <style>
+        :root {{
+            --red: #C8102E; --dark-red: #a00d24; --active: #16a34a;
+            --pending: #d97706; --muted: #6b7280; --bg: #f5f5f5;
+            --border: #e5e7eb; --purple: #7c3aed; --text: #374151;
+        }}
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5; color: #1a1a1a; line-height: 1.5;
+            background: var(--bg); color: #1a1a1a; line-height: 1.5;
         }}
         .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
         .header {{
-            background: #C8102E; padding: 20px 32px;
+            background: var(--red); padding: 20px 32px;
             display: flex; align-items: center; justify-content: space-between; color: white;
         }}
         .header-left {{ display: flex; align-items: center; gap: 16px; }}
         .logo-badge {{
             width: 48px; height: 48px; border-radius: 50%; background: white;
             display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 18px; color: #C8102E;
+            font-weight: 700; font-size: 18px; color: var(--red);
         }}
         .header-title {{ font-size: 22px; font-weight: 700; }}
         .header-subtitle {{ font-size: 13px; opacity: 0.9; }}
@@ -1108,7 +1348,7 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             background: #ffffff; border-radius: 12px; padding: 20px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }}
-        .stat-label {{ font-size: 13px; color: #6b7280; margin-bottom: 4px; }}
+        .stat-label {{ font-size: 13px; color: var(--muted); margin-bottom: 4px; }}
         .stat-value {{ font-size: 28px; font-weight: 700; }}
         .charts-row-2 {{
             display: grid; grid-template-columns: repeat(2, 1fr);
@@ -1124,22 +1364,78 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         }}
         .pie-row .chart-card {{ margin-bottom: 0; }}
         .chart-card h3 {{
-            font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 12px;
+            font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 12px;
         }}
         .chart-card canvas {{ height: 220px !important; }}
         .pie-row .chart-card canvas {{ height: 180px !important; }}
+        /* --- Stat mini-boxes below charts --- */
+        .stat-mini-row {{
+            display: flex; border-top: 1px solid var(--border);
+            margin-top: 16px; padding-top: 14px;
+        }}
+        .stat-mini-box {{
+            flex: 1; text-align: center; padding: 8px 0;
+            border-right: 1px solid var(--border);
+        }}
+        .stat-mini-box:last-child {{ border-right: none; }}
+        .stat-mini-box .mini-value {{
+            font-size: 24px; font-weight: 800; color: var(--red);
+        }}
+        .stat-mini-box .mini-label {{
+            font-size: 11px; color: var(--muted); text-transform: uppercase; margin-top: 2px;
+        }}
+        /* --- Section headers --- */
+        .section-title {{
+            border-top: 1px solid var(--border); padding-top: 10px;
+            margin-top: 24px; margin-bottom: 12px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--muted);
+        }}
+        /* --- Tier badge --- */
+        .tier-tag {{
+            display: inline-block; font-size: 11px; font-weight: 600;
+            color: var(--purple); background: #ede9fe;
+            padding: 1px 7px; border-radius: 8px; margin-left: 6px;
+            vertical-align: middle;
+        }}
+        /* --- Table styles --- */
         .table-card {{
             background: #ffffff; border-radius: 12px; padding: 20px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 20px;
         }}
+        .table-card table {{ border: 1px solid var(--border); }}
         table {{ width: 100%; border-collapse: collapse; }}
         thead th {{
             padding: 10px 16px; text-align: left; font-size: 12px;
-            font-weight: 600; color: #6b7280; text-transform: uppercase;
-            letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb;
+            font-weight: 600; color: var(--muted); text-transform: uppercase;
+            letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
+            cursor: pointer; user-select: none;
         }}
+        thead th:hover {{ color: var(--text); }}
         tbody tr {{ border-bottom: 1px solid #f3f4f6; }}
-        tbody tr:hover {{ background: #fafafa; }}
+        tbody tr:nth-child(odd) {{ background: #ffffff; }}
+        tbody tr:nth-child(even) {{ background: #f3f4f6; }}
+        tbody tr:hover {{ background: #eef0f3; }}
+        /* Member table column widths */
+        .member-table thead th:nth-child(1) {{ width: 30%; }}
+        .member-table thead th:nth-child(2) {{ width: 14%; }}
+        .member-table thead th:nth-child(3) {{ width: 12%; }}
+        .member-table thead th:nth-child(4) {{ width: 14%; }}
+        .member-table thead th:nth-child(5) {{ width: 15%; }}
+        .member-table thead th:nth-child(6) {{ width: 15%; }}
+        /* --- Table controls --- */
+        .table-controls {{
+            display: flex; gap: 12px; margin-bottom: 16px;
+        }}
+        .table-controls input {{
+            flex: 1; padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 13px; outline: none;
+        }}
+        .table-controls input:focus {{ border-color: var(--red); }}
+        .table-controls select {{
+            padding: 8px 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 13px; outline: none; background: white;
+        }}
         .footer {{
             text-align: center; padding: 24px; color: #9ca3af; font-size: 12px;
         }}
@@ -1148,6 +1444,8 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             .charts-row-2 {{ grid-template-columns: 1fr; }}
             .pie-row {{ grid-template-columns: 1fr; }}
             .header {{ flex-direction: column; gap: 12px; text-align: center; }}
+            .stat-mini-row {{ flex-wrap: wrap; }}
+            .stat-mini-box {{ min-width: 50%; }}
         }}
     </style>
 </head>
