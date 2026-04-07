@@ -809,15 +809,17 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
     .canvas-wrap { flex: 1; min-height: 300px; }
     .canvas { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-height: 250px; }
     .canvas-empty { border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px; text-align: center; color: #9ca3af; font-size: 14px; }
-    .canvas-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 8px; cursor: grab; transition: box-shadow 0.15s, border-color 0.15s; }
+    .canvas-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 8px; cursor: grab; transition: transform 0.25s ease, box-shadow 0.15s, border-color 0.15s, opacity 0.2s; user-select: none; }
     .canvas-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    .canvas-item.dragging { opacity: 0.5; }
-    .canvas-item.drag-over { border-color: #C8102E; border-style: dashed; }
-    .canvas-item .drag-handle { color: #9ca3af; cursor: grab; font-size: 16px; flex-shrink: 0; }
+    .canvas-item.dnd-dragging { opacity: 0; height: 0; margin: 0; padding: 0; border: none; overflow: hidden; transition: none; }
+    .canvas-item.dnd-dragging + .date-override { height: 0; margin: 0; padding: 0; overflow: hidden; opacity: 0; transition: none; }
+    .dnd-clone { position: fixed; z-index: 10000; pointer-events: none; box-shadow: 0 12px 28px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08); transform: scale(1.03); opacity: 0.95; border: 2px solid #C8102E; border-radius: 8px; background: #fafbfc; display: flex; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; font-weight: 500; color: #374151; }
+    .dnd-clone .drag-handle { color: #C8102E; }
+    .canvas-item .drag-handle { color: #9ca3af; cursor: grab; font-size: 16px; flex-shrink: 0; touch-action: none; }
     .canvas-item .item-label { flex: 1; font-size: 13px; font-weight: 500; color: #374151; }
     .canvas-item .item-remove { color: #9ca3af; cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
     .canvas-item .item-remove:hover { color: #dc2626; background: #fee2e2; }
-    .date-override { margin-top: 6px; padding: 8px 10px; background: #f9fafb; border-radius: 6px; font-size: 12px; display: none; }
+    .date-override { margin-top: 6px; padding: 8px 10px; background: #f9fafb; border-radius: 6px; font-size: 12px; display: none; transition: transform 0.25s ease; }
     .date-override.visible { display: block; }
     .date-override label { color: #6b7280; font-size: 11px; }
     .date-override input[type=date] { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; }
@@ -1015,8 +1017,7 @@ function renderCanvas() {
         var meta = componentsMeta.find(function(m) { return m.key === item.key; });
         var label = meta ? meta.label : item.key;
         var supportsDate = meta && meta.supports_date_range;
-        html += '<div class="canvas-item" draggable="true" data-idx="' + idx + '" data-key="' + item.key + '"' +
-            ' ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dropItem(event)" ondragend="dragEnd(event)">' +
+        html += '<div class="canvas-item" data-idx="' + idx + '" data-key="' + item.key + '">' +
             '<span class="drag-handle">&#9776;</span>' +
             '<span class="item-label">' + label + '</span>';
         if (supportsDate) {
@@ -1077,6 +1078,10 @@ function renderCanvas() {
             }
         });
     });
+    // Drag-and-drop via pointer events
+    el.querySelectorAll('.drag-handle').forEach(function(handle) {
+        handle.addEventListener('pointerdown', dndPointerDown);
+    });
 }
 
 function removeItem(key) {
@@ -1090,37 +1095,191 @@ function reindex() {
     canvasItems.forEach(function(c, i) { c.order = i; });
 }
 
-// --- Drag and Drop ---
-var dragIdx = null;
-function dragStart(e) {
-    dragIdx = parseInt(e.target.getAttribute('data-idx'));
-    e.target.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
+// --- Drag and Drop (pointer-event based with smooth animations) ---
+var dndState = null;
+
+function getItemGroups(container) {
+    var groups = [];
+    var children = container.children;
+    for (var i = 0; i < children.length; i++) {
+        var child = children[i];
+        if (child.classList.contains('canvas-item')) {
+            var group = { el: child, overrideEl: null, idx: parseInt(child.getAttribute('data-idx')) };
+            // Check if next sibling is a date-override
+            if (i + 1 < children.length && children[i + 1].classList.contains('date-override')) {
+                group.overrideEl = children[i + 1];
+            }
+            groups.push(group);
+        }
+    }
+    return groups;
 }
-function dragOver(e) {
+
+function getGroupHeight(group) {
+    var h = group.el.getBoundingClientRect().height;
+    if (group.overrideEl) h += group.overrideEl.getBoundingClientRect().height;
+    // Add margin-bottom (8px on canvas-item)
+    h += 8;
+    return h;
+}
+
+function dndPointerDown(e) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    var item = e.target.closest('.canvas-item');
-    if (item) item.classList.add('drag-over');
-}
-function dropItem(e) {
-    e.preventDefault();
-    var target = e.target.closest('.canvas-item');
-    if (!target) return;
-    var targetIdx = parseInt(target.getAttribute('data-idx'));
-    if (dragIdx === null || dragIdx === targetIdx) return;
-    var enabled = canvasItems.filter(function(c) { return c.enabled; });
-    enabled.sort(function(a, b) { return a.order - b.order; });
-    var moved = enabled.splice(dragIdx, 1)[0];
-    enabled.splice(targetIdx, 0, moved);
-    enabled.forEach(function(c, i) { c.order = i; });
-    renderCanvas();
-}
-function dragEnd(e) {
-    dragIdx = null;
-    document.querySelectorAll('.canvas-item').forEach(function(el) {
-        el.classList.remove('dragging', 'drag-over');
+    var handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    var itemEl = handle.closest('.canvas-item');
+    if (!itemEl) return;
+    var container = document.getElementById('reportCanvas');
+    var groups = getItemGroups(container);
+    if (groups.length < 2) return;
+
+    var dragIdx = parseInt(itemEl.getAttribute('data-idx'));
+    var dragGroup = groups.find(function(g) { return g.idx === dragIdx; });
+    if (!dragGroup) return;
+
+    // Capture heights and midpoints BEFORE collapsing
+    var draggedHeight = getGroupHeight(dragGroup);
+    var itemRect = dragGroup.el.getBoundingClientRect();
+    var offsetY = e.clientY - itemRect.top;
+    var containerRect = container.getBoundingClientRect();
+
+    // Record original positions of non-dragged groups
+    var otherGroups = groups.filter(function(g) { return g.idx !== dragIdx; });
+    var groupRects = otherGroups.map(function(g) {
+        var r = g.el.getBoundingClientRect();
+        var h = getGroupHeight(g);
+        return { group: g, top: r.top, height: h, mid: r.top + h / 2 };
     });
+
+    // Create floating clone
+    var clone = document.createElement('div');
+    clone.className = 'dnd-clone';
+    clone.innerHTML = '<span class="drag-handle" style="color:#C8102E;font-size:16px;">&#9776;</span>' +
+        '<span style="flex:1;font-size:13px;font-weight:500;color:#374151;">' + dragGroup.el.querySelector('.item-label').textContent + '</span>';
+    clone.style.width = itemRect.width + 'px';
+    clone.style.top = itemRect.top + 'px';
+    clone.style.left = itemRect.left + 'px';
+    document.body.appendChild(clone);
+
+    // Collapse original
+    dragGroup.el.classList.add('dnd-dragging');
+
+    // Store state
+    dndState = {
+        dragIdx: dragIdx,
+        clone: clone,
+        offsetY: offsetY,
+        draggedHeight: draggedHeight,
+        otherGroups: otherGroups,
+        groupRects: groupRects,
+        targetIdx: dragIdx,
+        handle: handle,
+        containerTop: containerRect.top
+    };
+
+    // Wait for layout to settle after collapse, then recalculate positions
+    requestAnimationFrame(function() {
+        // Recalculate positions of other groups now that dragged item is collapsed
+        if (!dndState) return;
+        dndState.groupRects = dndState.otherGroups.map(function(g) {
+            var r = g.el.getBoundingClientRect();
+            var h = getGroupHeight(g);
+            return { group: g, top: r.top, height: h, mid: r.top + h / 2 };
+        });
+    });
+
+    handle.setPointerCapture(e.pointerId);
+    handle.addEventListener('pointermove', dndPointerMove);
+    handle.addEventListener('pointerup', dndPointerUp);
+    handle.addEventListener('pointercancel', dndPointerUp);
+}
+
+function dndPointerMove(e) {
+    if (!dndState) return;
+    // Move clone
+    dndState.clone.style.top = (e.clientY - dndState.offsetY) + 'px';
+
+    // Determine target insertion index based on cursor Y vs midpoints
+    var cursorY = e.clientY;
+    var dragIdx = dndState.dragIdx;
+    var otherGroups = dndState.otherGroups;
+    var groupRects = dndState.groupRects;
+    var draggedHeight = dndState.draggedHeight;
+
+    // Count how many non-dragged items have their midpoint above the cursor
+    var insertBefore = otherGroups.length; // default: insert at end
+    for (var i = 0; i < groupRects.length; i++) {
+        if (cursorY < groupRects[i].mid) {
+            insertBefore = i;
+            break;
+        }
+    }
+
+    // Convert insertBefore (index among other groups) to actual target index
+    // Items before the drag position stay at their index; items after shift
+    var targetIdx;
+    if (insertBefore >= otherGroups.length) {
+        // Place after all others
+        targetIdx = otherGroups.length;
+    } else {
+        targetIdx = insertBefore;
+    }
+    // Adjust: if original position was before insertBefore, target stays the same
+    // because removing the dragged item shifted indices down
+    if (dragIdx <= insertBefore) {
+        targetIdx = insertBefore;
+    }
+
+    dndState.targetIdx = targetIdx;
+
+    // Apply transforms: items at or after the insertion point shift down
+    for (var j = 0; j < otherGroups.length; j++) {
+        var shouldShift = j >= insertBefore;
+        var ty = shouldShift ? draggedHeight + 'px' : '0px';
+        otherGroups[j].el.style.transform = 'translateY(' + ty + ')';
+        if (otherGroups[j].overrideEl) {
+            otherGroups[j].overrideEl.style.transform = 'translateY(' + ty + ')';
+        }
+    }
+}
+
+function dndPointerUp(e) {
+    if (!dndState) return;
+    var state = dndState;
+    dndState = null;
+
+    // Clean up clone
+    if (state.clone.parentNode) {
+        state.clone.parentNode.removeChild(state.clone);
+    }
+
+    // Remove dragging class and reset transforms
+    var container = document.getElementById('reportCanvas');
+    container.querySelectorAll('.canvas-item').forEach(function(el) {
+        el.classList.remove('dnd-dragging');
+        el.style.transform = '';
+    });
+    container.querySelectorAll('.date-override').forEach(function(el) {
+        el.style.transform = '';
+    });
+
+    // Release pointer capture and remove listeners
+    state.handle.removeEventListener('pointermove', dndPointerMove);
+    state.handle.removeEventListener('pointerup', dndPointerUp);
+    state.handle.removeEventListener('pointercancel', dndPointerUp);
+    try { state.handle.releasePointerCapture(e.pointerId); } catch(ex) {}
+
+    // Update data model
+    var targetIdx = state.targetIdx;
+    var dragIdx = state.dragIdx;
+    if (targetIdx !== dragIdx) {
+        var enabled = canvasItems.filter(function(c) { return c.enabled; });
+        enabled.sort(function(a, b) { return a.order - b.order; });
+        var moved = enabled.splice(dragIdx, 1)[0];
+        enabled.splice(targetIdx, 0, moved);
+        enabled.forEach(function(c, i) { c.order = i; });
+    }
+    renderCanvas();
 }
 
 // --- Date overrides ---

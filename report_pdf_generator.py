@@ -442,6 +442,85 @@ def _pdf_claude_code_stats(data):
     return flowables
 
 
+def _pdf_cc_sessions_chart(data):
+    cc = data.get("claude_code", {})
+    chart_data = cc.get("activity_chart", {"labels": [], "data": []})
+    vals = chart_data.get("data", [])
+    labels = chart_data.get("labels", [])
+    if not vals:
+        return []
+    fig = _make_line_chart(labels, vals, "Claude Code Daily Sessions",
+                           color=CC_PURPLE, color_rgb=CC_PURPLE_RGB)
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, 2.2 * inch)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [chart_table, Spacer(1, 14)]
+
+
+def _pdf_cc_lines_chart(data):
+    cc = data.get("claude_code", {})
+    chart_data = cc.get("lines_chart", {"labels": [], "data": []})
+    vals = chart_data.get("data", [])
+    labels = chart_data.get("labels", [])
+    if not vals:
+        return []
+    fig = _make_line_chart(labels, vals, "Claude Code Daily Lines Accepted",
+                           color=CC_PURPLE, color_rgb=CC_PURPLE_RGB)
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, 2.2 * inch)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [chart_table, Spacer(1, 14)]
+
+
+def _pdf_cc_top_users(data):
+    cc = data.get("claude_code", {})
+    cc_users = cc.get("users", [])[:10]
+    if not cc_users:
+        return []
+    names = [u.get("name", "?") for u in cc_users]
+    sessions = [u.get("total_sessions", 0) for u in cc_users]
+    lines = [u.get("total_lines_accepted", 0) for u in cc_users]
+    flowables = []
+    fig1 = _make_hbar_chart(names, sessions, "Top Claude Code Users (Sessions MTD)",
+                            color=CC_PURPLE)
+    h1 = max(1.5 * inch, len(names) * 0.28 * inch)
+    img1 = _fig_to_image(fig1, USABLE_WIDTH - 8, h1)
+    flowables.extend([img1, Spacer(1, 14)])
+    fig2 = _make_hbar_chart(names, lines, "Top Claude Code Users (Lines Accepted MTD)",
+                            color="#16a34a")
+    img2 = _fig_to_image(fig2, USABLE_WIDTH - 8, h1)
+    flowables.extend([img2, Spacer(1, 14)])
+    return flowables
+
+
+def _pdf_cc_user_table(data):
+    cc = data.get("claude_code", {})
+    cc_users = cc.get("users", [])
+    if not cc_users:
+        return []
+    cc_table = _build_cc_user_table(cc_users)
+    return [
+        SectionHeader("Claude Code User Breakdown", color=CC_PURPLE),
+        Spacer(1, 10),
+        cc_table,
+        Spacer(1, 14),
+    ]
+
+
 def _pdf_member_directory(data):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -544,6 +623,10 @@ _COMPONENT_RENDERERS = {
     "top_users_artifacts": lambda data, comps: _pdf_top_users_artifacts(data),
     "top_users_chats": lambda data, comps: _pdf_top_users_chats(data),
     "claude_code_stats": lambda data, comps: _pdf_claude_code_stats(data),
+    "cc_sessions_chart": lambda data, comps: _pdf_cc_sessions_chart(data),
+    "cc_lines_chart": lambda data, comps: _pdf_cc_lines_chart(data),
+    "cc_top_users": lambda data, comps: _pdf_cc_top_users(data),
+    "cc_user_table": lambda data, comps: _pdf_cc_user_table(data),
     "member_directory": lambda data, comps: _pdf_member_directory(data),
     "executive_summary": lambda data, comps: _pdf_executive_summary(data, comps),
     "email_highlights": lambda data, comps: _pdf_email_highlights(data),

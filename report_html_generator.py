@@ -246,34 +246,30 @@ def _render_stats_row(data, comp, idx):
     total_seats = data.get("total_seats", len(members))
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
     pending_count = data.get("pending_invites", sum(1 for m in members if m.get("status") == "Pending"))
-    overview = data.get("activity_overview", {})
-    dau = overview.get("dau", {}).get("value", "\u2014")
-    wau = overview.get("wau", {}).get("value", "\u2014")
-    utilization = overview.get("utilization", {}).get("value", "\u2014")
     plan_tier = data.get("plan_tier", "Standard")
-    if isinstance(utilization, (int, float)):
-        utilization_str = f"{utilization:.0f}%"
-    else:
-        utilization_str = str(utilization)
+    assigned = active_count + pending_count
+    available = total_seats - assigned
     return f"""
     <div class="stats-row" style="grid-template-columns:repeat(4,1fr);">
         <div class="stat-card">
-            <div class="stat-label">Assigned Seats</div>
-            <div class="stat-value" style="color:#C8102E;">{active_count + pending_count}/{total_seats}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">{active_count} active &middot; {pending_count} pending</div>
+            <div class="stat-label">Total Seats</div>
+            <div class="stat-value" style="color:#C8102E;">{total_seats}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">{available} available &middot; {assigned} assigned</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Daily Active Users</div>
-            <div class="stat-value" style="color:#16a34a;">{dau}</div>
+            <div class="stat-label">Active Members</div>
+            <div class="stat-value" style="color:#16a34a;">{active_count}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Onboarded &amp; using Claude</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Weekly Active Users</div>
-            <div class="stat-value" style="color:#2563eb;">{wau}</div>
+            <div class="stat-label">Pending Invites</div>
+            <div class="stat-value" style="color:#d97706;">{pending_count}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Haven't accepted invite yet</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Utilization</div>
-            <div class="stat-value" style="color:#d97706;">{utilization_str}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:2px;">{_escape(plan_tier)}</div>
+            <div class="stat-label">Seat Tier</div>
+            <div class="stat-value" style="color:#C8102E;">{_escape(plan_tier)}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Plan type</div>
         </div>
     </div>"""
 
@@ -695,6 +691,172 @@ def _render_claude_code_stats(data, comp, idx):
     </div>"""
 
 
+def _render_cc_sessions_chart(data, comp, idx):
+    cc = data.get("claude_code", {})
+    cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
+    canvas_id = f"ccSessions_{idx}"
+    return f"""
+    <div class="chart-card">
+        <h3>Claude Code Sessions (Daily)</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'line',
+        data: {{
+            labels: {json.dumps(cc_activity_chart.get("labels", []))},
+            datasets: [{{
+                label: 'Sessions',
+                data: {json.dumps(cc_activity_chart.get("data", []))},
+                borderColor: '#7c3aed',
+                backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                fill: true, tension: 0.3,
+                pointBackgroundColor: '#ffffff', pointBorderColor: '#7c3aed',
+                pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                x: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
+def _render_cc_lines_chart(data, comp, idx):
+    cc = data.get("claude_code", {})
+    cc_lines_chart = cc.get("lines_chart", {"labels": [], "data": []})
+    canvas_id = f"ccLines_{idx}"
+    return f"""
+    <div class="chart-card">
+        <h3>Claude Code Lines Accepted (Daily)</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'line',
+        data: {{
+            labels: {json.dumps(cc_lines_chart.get("labels", []))},
+            datasets: [{{
+                label: 'Lines Accepted',
+                data: {json.dumps(cc_lines_chart.get("data", []))},
+                borderColor: '#16a34a',
+                backgroundColor: 'rgba(22, 163, 74, 0.08)',
+                fill: true, tension: 0.3,
+                pointBackgroundColor: '#ffffff', pointBorderColor: '#16a34a',
+                pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 7
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                x: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
+def _render_cc_top_users(data, comp, idx):
+    cc = data.get("claude_code", {})
+    cc_users = cc.get("users", [])
+    names = json.dumps([u.get("name", "?") for u in cc_users[:10]])
+    sessions = json.dumps([u.get("total_sessions", 0) for u in cc_users[:10]])
+    lines = json.dumps([u.get("total_lines_accepted", 0) for u in cc_users[:10]])
+    cid1 = f"ccTopSessions_{idx}"
+    cid2 = f"ccTopLines_{idx}"
+    return f"""
+    <div class="charts-row-2">
+        <div class="chart-card">
+            <h3>Top Claude Code Users (Sessions MTD)</h3>
+            <canvas id="{cid1}"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Top Claude Code Users (Lines Accepted MTD)</h3>
+            <canvas id="{cid2}"></canvas>
+        </div>
+    </div>""", f"""
+    new Chart(document.getElementById('{cid1}'), {{
+        type: 'bar',
+        data: {{
+            labels: {names},
+            datasets: [{{ label: 'Sessions', data: {sessions}, backgroundColor: '#7c3aed', borderRadius: 4, barThickness: 20 }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{ x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }}, y: {{ grid: {{ display: false }} }} }}
+        }}
+    }});
+    new Chart(document.getElementById('{cid2}'), {{
+        type: 'bar',
+        data: {{
+            labels: {names},
+            datasets: [{{ label: 'Lines Accepted', data: {lines}, backgroundColor: '#16a34a', borderRadius: 4, barThickness: 20 }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{ x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }}, y: {{ grid: {{ display: false }} }} }}
+        }}
+    }});"""
+
+
+def _render_cc_user_table(data, comp, idx):
+    cc = data.get("claude_code", {})
+    cc_users = cc.get("users", [])
+    if not cc_users:
+        return ""
+    rows = ""
+    for u in cc_users:
+        u_name = _escape(u.get("name", ""))
+        u_email = _escape(u.get("email", ""))
+        u_initials = _escape(_get_initials(u.get("name", "")))
+        u_sessions = u.get("total_sessions", 0)
+        u_lines = u.get("total_lines_accepted", 0)
+        u_commits = u.get("commits_created", 0)
+        u_prs_val = u.get("pull_requests_created", 0)
+        u_last = _escape(u.get("last_active", "\u2014") or "\u2014")
+        if u_last != "\u2014" and len(u_last) >= 10:
+            u_last = u_last[:10]
+        rows += f"""
+            <tr>
+                <td style="padding:12px 16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#7c3aed;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{u_initials}</div>
+                        <div>
+                            <div style="font-weight:500;color:#111827;">{u_name}</div>
+                            <div style="font-size:12px;color:#6b7280;">{u_email}</div>
+                        </div>
+                    </div>
+                </td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_sessions}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_lines:,}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_commits}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
+                <td style="padding:12px 16px;color:#374151;">{u_last}</td>
+            </tr>"""
+    return f"""
+    <div class="table-card">
+        <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Claude Code User Breakdown (MTD)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th style="text-align:center;">Sessions</th>
+                    <th style="text-align:center;">Lines Accepted</th>
+                    <th style="text-align:center;">Commits</th>
+                    <th style="text-align:center;">PRs</th>
+                    <th>Last Active</th>
+                </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+        </table>
+    </div>"""
+
+
 def _render_member_directory(data, comp, idx):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -871,6 +1033,14 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             result = _render_top_users_artifacts(comp_data, comp, idx)
         elif key == "claude_code_stats":
             result = _render_claude_code_stats(comp_data, comp, idx)
+        elif key == "cc_sessions_chart":
+            result = _render_cc_sessions_chart(comp_data, comp, idx)
+        elif key == "cc_lines_chart":
+            result = _render_cc_lines_chart(comp_data, comp, idx)
+        elif key == "cc_top_users":
+            result = _render_cc_top_users(comp_data, comp, idx)
+        elif key == "cc_user_table":
+            result = _render_cc_user_table(comp_data, comp, idx)
         elif key == "member_directory":
             result = _render_member_directory(comp_data, comp, idx)
         elif key == "executive_summary":

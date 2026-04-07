@@ -12,6 +12,27 @@ All notable changes to the Claude Usage Dashboard will be documented in this fil
 - Fresh cache detection (60s window) to avoid double-scraping after UI-triggered refresh
 - Scraper progress callback support via `progress_callback` parameter on `scrape()`
 
+## [0.9.8] - 2026-04-06
+
+### Changed
+- Replaced native HTML5 drag-and-drop with pointer-event-based system for report builder section reordering
+- Sections now smoothly slide out of the way during drag with CSS transform animations
+- Dragged section shows as a floating clone with lifted appearance (shadow, red border, slight scale)
+- Added touch device support with pointer capture for reliable tracking
+
+## [0.9.7] - 2026-04-06
+
+### Changed
+- Stats row in report builder now shows Total Seats, Active Members, Pending Invites, Seat Tier (was DAU/WAU/Utilization)
+
+### Added
+- Claude Code Daily Sessions line chart component (cc_sessions_chart)
+- Claude Code Daily Lines Accepted line chart component (cc_lines_chart)
+- Claude Code Top Users bar charts component (cc_top_users)
+- Claude Code User Breakdown table component (cc_user_table)
+- All new components available in both HTML and PDF report builders
+- Updated Full Dashboard, Activity Deep Dive, and Expanded Report templates
+
 ## [0.9.6] - 2026-04-06
 
 ### Fixed
