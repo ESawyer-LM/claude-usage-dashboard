@@ -408,16 +408,34 @@ def get_next_run_times() -> dict:
     """Get the next run times for all schedule jobs.
 
     Returns a dict mapping schedule_id -> ISO timestamp (or None).
+    Computes next fire times directly from schedule config via CronTrigger
+    so results are available even before the scheduler has started.
     """
     global _scheduler
     result = {}
 
-    if _scheduler is None:
+    # First try the live scheduler (accurate after start())
+    if _scheduler is not None:
+        for job in _scheduler.get_jobs():
+            if job.id.startswith(_JOB_PREFIX):
+                sched_id = job.id[len(_JOB_PREFIX):]
+                result[sched_id] = job.next_run_time.isoformat() if job.next_run_time else None
+
+    # If scheduler returned results, use them
+    if result:
         return result
 
-    for job in _scheduler.get_jobs():
-        if job.id.startswith(_JOB_PREFIX):
-            sched_id = job.id[len(_JOB_PREFIX):]
-            result[sched_id] = job.next_run_time.isoformat() if job.next_run_time else None
+    # Fallback: compute next fire times from schedule config directly
+    settings = config.load_settings()
+    tz_str = settings.get("timezone", "America/Chicago")
+    now = datetime.now(ZoneInfo(tz_str))
+
+    for schedule in settings.get("schedules", []):
+        try:
+            trigger = _build_trigger(schedule, tz_str)
+            next_fire = trigger.get_next_fire_time(None, now)
+            result[schedule["id"]] = next_fire.isoformat() if next_fire else None
+        except Exception:
+            result[schedule["id"]] = None
 
     return result
