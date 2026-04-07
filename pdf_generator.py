@@ -138,23 +138,15 @@ class HeaderBanner(Flowable):
         c.setFillColor(colors.HexColor(LM_RED))
         c.rect(0, 0, w, h, fill=1, stroke=0)
 
-        # White circle with "LM"
-        cx, cy = 40, h / 2
-        c.setFillColor(colors.white)
-        c.circle(cx, cy, 18, fill=1, stroke=0)
-        c.setFillColor(colors.HexColor(LM_RED))
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(cx, cy - 5, "LM")
-
         # Title
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 18)
-        c.drawString(68, h / 2 + 8, self.title)
+        c.drawString(24, h / 2 + 8, self.title)
 
         # Subtitle
         c.setFillColor(colors.HexColor("#FFB3B3"))
         c.setFont("Helvetica", 10)
-        c.drawString(68, h / 2 - 12, self.subtitle)
+        c.drawString(24, h / 2 - 12, self.subtitle)
 
         # Date badge on the right
         badge_text = f"As of {self.date_str}"

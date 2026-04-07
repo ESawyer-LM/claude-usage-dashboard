@@ -534,11 +534,6 @@ _BASE_CSS = """
         align-items: center; justify-content: space-between; color: white;
     }
     .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
-    .navbar-brand .badge {
-        width: 32px; height: 32px; border-radius: 50%; background: white;
-        display: flex; align-items: center; justify-content: center;
-        font-weight: 700; font-size: 12px; color: #C8102E;
-    }
     .navbar a { color: white; text-decoration: none; font-size: 13px; opacity: 0.9; }
     .navbar a:hover { opacity: 1; }
     .container { max-width: 960px; margin: 0 auto; padding: 24px; }
@@ -646,7 +641,7 @@ REPORT_MANAGER_TEMPLATE = """<!DOCTYPE html>
     .nav-dropdown-divider { border-top: 1px solid #f3f4f6; margin: 4px 0; }
 </style></head><body>
 <div class="navbar">
-    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
+    <a class="navbar-brand" href="/dashboard">Claude Dashboard Admin</a>
     <div class="nav-dropdown" id="navDropdown">
         <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
         <div class="nav-dropdown-menu">
@@ -851,7 +846,7 @@ REPORT_BUILDER_TEMPLATE = """<!DOCTYPE html>
     .nav-dropdown-divider { border-top: 1px solid #f3f4f6; margin: 4px 0; }
 </style></head><body>
 <div class="navbar">
-    <a class="navbar-brand" href="/dashboard"><div class="badge">LM</div> Claude Dashboard Admin</a>
+    <a class="navbar-brand" href="/dashboard">Claude Dashboard Admin</a>
     <div class="nav-dropdown" id="navDropdown">
         <button class="nav-dropdown-btn" onclick="this.parentElement.classList.toggle('open')">Menu &#9662;</button>
         <div class="nav-dropdown-menu">

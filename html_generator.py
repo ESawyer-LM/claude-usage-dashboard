@@ -334,11 +334,6 @@ def generate_html(data: dict, report_type: str = None) -> str:
             color: white;
         }}
         .header-left {{ display: flex; align-items: center; gap: 16px; }}
-        .logo-badge {{
-            width: 48px; height: 48px; border-radius: 50%; background: white;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 18px; color: #C8102E;
-        }}
         .header-title {{ font-size: 22px; font-weight: 700; }}
         .header-subtitle {{ font-size: 13px; opacity: 0.9; }}
         .date-badge {{
@@ -429,7 +424,6 @@ def generate_html(data: dict, report_type: str = None) -> str:
     <!-- Header -->
     <div class="header">
         <div class="header-left">
-            <div class="logo-badge">LM</div>
             <div>
                 <div class="header-title">Claude Usage Dashboard</div>
                 <div class="header-subtitle">{_escape(org_name)}</div>
