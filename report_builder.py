@@ -269,7 +269,11 @@ def api_pdf_report(report_id):
     data = _load_cached_data()
     if not data:
         return jsonify({"ok": False, "error": "No data available. Run a scrape first."}), 400
-    filepath = generate_report_pdf(data, report)
+    try:
+        filepath = generate_report_pdf(data, report)
+    except Exception as e:
+        logger.error(f"PDF generation failed for report {report_id}: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": f"PDF generation failed: {e}"}), 500
     with open(filepath, "rb") as f:
         pdf_bytes = f.read()
     safe_title = re.sub(r'[^a-zA-Z0-9_\- ]', '', report.get("title", "report"))[:50]
