@@ -578,6 +578,81 @@ def _pdf_cowork_top_users(data):
     return [chart_table, Spacer(1, 14)]
 
 
+def _pdf_cowork_user_table(data):
+    cowork = data.get("cowork", {})
+    cw_users = cowork.get("users", [])
+    if not cw_users:
+        return []
+
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle("cw_cell", parent=styles["Normal"], fontSize=7, leading=9)
+    cell_bold = ParagraphStyle("cw_cellbold", parent=cell_style, fontName="Helvetica-Bold")
+    cell_center = ParagraphStyle("cw_cellcenter", parent=cell_style, alignment=TA_CENTER)
+    cell_center_bold = ParagraphStyle("cw_cellcenterbold", parent=cell_bold, alignment=TA_CENTER)
+    header_style = ParagraphStyle(
+        "cw_header", parent=styles["Normal"], fontSize=6.5, leading=8,
+        textColor=colors.HexColor("#374151"), fontName="Helvetica-Bold"
+    )
+    header_center = ParagraphStyle("cw_headercenter", parent=header_style, alignment=TA_CENTER)
+
+    headers = [
+        Paragraph("USER", header_style),
+        Paragraph("CHATS", header_center),
+        Paragraph("PROJECTS", header_center),
+        Paragraph("ARTIFACTS", header_center),
+    ]
+
+    data_rows = [headers]
+    for u in cw_users[:25]:
+        name = u.get("name", "")
+        email = u.get("email", "")
+        chats = u.get("chats", 0)
+        projects = u.get("projects", 0)
+        artifacts = u.get("artifacts", 0)
+        name_p = Paragraph(
+            f'<b>{name}</b> <font color="#9ca3af" size="6">{email}</font>',
+            cell_style,
+        )
+        chats_style = cell_center_bold if chats > 0 else cell_center
+        proj_style = cell_center_bold if projects > 0 else cell_center
+        art_style = cell_center_bold if artifacts > 0 else cell_center
+        data_rows.append([
+            name_p,
+            Paragraph(str(chats), chats_style),
+            Paragraph(str(projects), proj_style),
+            Paragraph(str(artifacts), art_style),
+        ])
+
+    col_widths = [
+        USABLE_WIDTH * 0.40,
+        USABLE_WIDTH * 0.20,
+        USABLE_WIDTH * 0.20,
+        USABLE_WIDTH * 0.20,
+    ]
+    tbl = Table(data_rows, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f9fafb")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#374151")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 6.5),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 1), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+    ]))
+    return [
+        SectionHeader("Cowork User Breakdown", color=CW_TEAL),
+        Spacer(1, 10),
+        tbl,
+        Spacer(1, 14),
+    ]
+
+
 def _pdf_member_directory(data):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -686,6 +761,7 @@ _COMPONENT_RENDERERS = {
     "cc_user_table": lambda data, comps: _pdf_cc_user_table(data),
     "cowork_dau_chart": lambda data, comps: _pdf_cowork_dau_chart(data),
     "cowork_top_users": lambda data, comps: _pdf_cowork_top_users(data),
+    "cowork_user_table": lambda data, comps: _pdf_cowork_user_table(data),
     "member_directory": lambda data, comps: _pdf_member_directory(data),
     "executive_summary": lambda data, comps: _pdf_executive_summary(data, comps),
     "email_highlights": lambda data, comps: _pdf_email_highlights(data),
