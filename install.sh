@@ -31,6 +31,11 @@ if [ -d "$APP_DIR/.git" ]; then
     echo "  → Git repo found, pulling latest..."
     sudo -u "$SERVICE_USER" git -C "$APP_DIR" fetch --tags origin 2>/dev/null || true
     sudo -u "$SERVICE_USER" git -C "$APP_DIR" pull origin main 2>/dev/null || true
+    # Always overlay source files to catch anything git pull missed (e.g. private repo)
+    echo "  → Syncing source files from $SRC_DIR..."
+    for f in "$SRC_DIR"/*.py "$SRC_DIR"/requirements.txt "$SRC_DIR"/*.md "$SRC_DIR"/*.sh "$SRC_DIR"/*.service "$SRC_DIR"/.env.example; do
+        [ -f "$f" ] && sudo cp "$f" "$APP_DIR/"
+    done
 elif git ls-remote "$GITHUB_REPO" HEAD &>/dev/null; then
     # Fresh install with network — clone for auto-update support
     echo "  → Cloning repository for auto-update support..."
@@ -38,23 +43,15 @@ elif git ls-remote "$GITHUB_REPO" HEAD &>/dev/null; then
     sudo git clone "$GITHUB_REPO" "$APP_DIR" 2>/dev/null || {
         # Clone failed (private repo without credentials) — fall back to copy
         echo "  → Clone failed, falling back to file copy..."
-        for f in main.py config.py scraper.py html_generator.py pdf_generator.py \
-                 emailer.py scheduler.py admin.py requirements.txt .env.example \
-                 claude-dashboard.service CHANGELOG.md CLAUDE.md README.md; do
-            if [ -f "$SRC_DIR/$f" ]; then
-                sudo cp "$SRC_DIR/$f" "$APP_DIR/$f"
-            fi
+        for f in "$SRC_DIR"/*.py "$SRC_DIR"/requirements.txt "$SRC_DIR"/*.md "$SRC_DIR"/*.sh "$SRC_DIR"/*.service "$SRC_DIR"/.env.example; do
+            [ -f "$f" ] && sudo cp "$f" "$APP_DIR/"
         done
     }
 else
     # No network or repo unreachable — copy files
     sudo mkdir -p "$APP_DIR"
-    for f in main.py config.py scraper.py html_generator.py pdf_generator.py \
-             emailer.py scheduler.py admin.py requirements.txt .env.example \
-             claude-dashboard.service CHANGELOG.md CLAUDE.md README.md; do
-        if [ -f "$SRC_DIR/$f" ]; then
-            sudo cp "$SRC_DIR/$f" "$APP_DIR/$f"
-        fi
+    for f in "$SRC_DIR"/*.py "$SRC_DIR"/requirements.txt "$SRC_DIR"/*.md "$SRC_DIR"/*.sh "$SRC_DIR"/*.service "$SRC_DIR"/.env.example; do
+        [ -f "$f" ] && sudo cp "$f" "$APP_DIR/"
     done
 fi
 echo "  ✓ Project files installed at $APP_DIR"
