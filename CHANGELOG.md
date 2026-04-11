@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.12] - 2026-04-11
+
+### Fixed
+- Fix Lines Accepted chart showing all zeros — API data points use field `lines_of_code`, not `total_lines_accepted`
+- Remove diagnostic logging added in v0.10.11
+
 ## [0.10.11] - 2026-04-11
 
 ### Fixed

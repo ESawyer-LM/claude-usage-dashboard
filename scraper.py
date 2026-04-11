@@ -488,17 +488,8 @@ def scrape(progress_callback=None) -> dict:
             cc_activity_chart["data"].append(dp.get("sessions_count", 0) or 0)
 
         # Build Claude Code lines-of-code timeseries for chart
-        logger.info(f"CC overview keys: {list(cc_overview.keys())}")
-        logger.info(f"CC timeseries keys: {list(cc_timeseries.keys())}")
         cc_lines_chart = {"labels": [], "data": []}
         lines_series = cc_timeseries.get("lines_of_code", [])
-        if lines_series:
-            logger.info(f"CC lines_of_code first entry: {lines_series[0]}")
-        else:
-            # Try to find the correct key
-            for k, v in cc_timeseries.items():
-                if isinstance(v, list) and v:
-                    logger.info(f"CC timeseries['{k}'] sample: {v[0]}")
         for dp in lines_series:
             date_str = dp.get("date", "")
             try:
@@ -506,7 +497,7 @@ def scrape(progress_callback=None) -> dict:
                 cc_lines_chart["labels"].append(dt.strftime("%b %d"))
             except (ValueError, TypeError):
                 cc_lines_chart["labels"].append(date_str)
-            value = dp.get("total_lines_accepted", dp.get("lines_accepted", dp.get("value", 0)))
+            value = dp.get("lines_of_code", dp.get("total_lines_accepted", dp.get("value", 0)))
             cc_lines_chart["data"].append(int(value) if value else 0)
 
         _report_progress(progress_callback, "processing", 85, "Processing & caching data")
