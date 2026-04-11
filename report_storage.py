@@ -42,7 +42,7 @@ REPORT_COMPONENTS = [
     # --- Cowork ---
     {"key": "cowork_dau_chart", "label": "Cowork Daily Active Users (Line Chart)", "category": "Cowork", "supports_date_range": True},
     # --- People ---
-    {"key": "member_directory", "label": "Member Directory Table", "category": "People", "supports_date_range": False},
+    {"key": "member_directory", "label": "Member Directory Table", "category": "People", "supports_date_range": False, "default_options": {"show_role": True, "show_chats": True, "show_projects": True, "show_artifacts": True}},
     # --- Narrative ---
     {"key": "executive_summary", "label": "Executive Summary (Auto-Generated)", "category": "Narrative", "supports_date_range": False},
     {"key": "email_highlights", "label": "Email Highlights (Key Stats Text)", "category": "Narrative", "supports_date_range": False},

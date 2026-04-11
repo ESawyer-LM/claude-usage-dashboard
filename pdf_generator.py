@@ -402,9 +402,14 @@ def _make_hbar_chart(names, counts, title, color=LM_RED):
 # ---------------------------------------------------------------------------
 # Member directory table
 # ---------------------------------------------------------------------------
-def _build_member_table(members, top_projects, top_artifacts, top_chats=None):
+def _build_member_table(members, top_projects, top_artifacts, top_chats=None, options=None):
     """Build a ReportLab Table for the member directory."""
     styles = getSampleStyleSheet()
+    opts = options or {}
+    show_role = opts.get("show_role", True)
+    show_chats = opts.get("show_chats", True)
+    show_projects = opts.get("show_projects", True)
+    show_artifacts = opts.get("show_artifacts", True)
 
     cell_style = ParagraphStyle("cell", parent=styles["Normal"], fontSize=7, leading=9)
     cell_bold = ParagraphStyle("cellbold", parent=styles["Normal"], fontSize=7, leading=9,
@@ -422,15 +427,17 @@ def _build_member_table(members, top_projects, top_artifacts, top_chats=None):
     chat_lookup = {u["name"]: u["count"] for u in (top_chats or [])}
 
     # Header row
-    headers = [
-        Paragraph("MEMBER", header_style),
-        Paragraph("ROLE", header_center),
-        Paragraph("TIER", header_center),
-        Paragraph("STATUS", header_center),
-        Paragraph("CHATS", header_center),
-        Paragraph("PROJ", header_center),
-        Paragraph("ARTIFACTS", header_center),
-    ]
+    headers = [Paragraph("MEMBER", header_style)]
+    if show_role:
+        headers.append(Paragraph("ROLE", header_center))
+    headers.append(Paragraph("TIER", header_center))
+    headers.append(Paragraph("STATUS", header_center))
+    if show_chats:
+        headers.append(Paragraph("CHATS", header_center))
+    if show_projects:
+        headers.append(Paragraph("PROJ", header_center))
+    if show_artifacts:
+        headers.append(Paragraph("ARTIFACTS", header_center))
 
     data_rows = [headers]
     for m in members:
@@ -485,26 +492,33 @@ def _build_member_table(members, top_projects, top_artifacts, top_chats=None):
         proj_style = cell_center_bold if projects > 0 else cell_center
         art_style = cell_center_bold if artifacts > 0 else cell_center
 
-        data_rows.append([
-            name_p,
-            role_p,
-            Paragraph(tier_label, cell_center),
-            status_p,
-            Paragraph(str(chats), chat_s),
-            Paragraph(str(projects), proj_style),
-            Paragraph(str(artifacts), art_style),
-        ])
+        row = [name_p]
+        if show_role:
+            row.append(role_p)
+        row.append(Paragraph(tier_label, cell_center))
+        row.append(status_p)
+        if show_chats:
+            row.append(Paragraph(str(chats), chat_s))
+        if show_projects:
+            row.append(Paragraph(str(projects), proj_style))
+        if show_artifacts:
+            row.append(Paragraph(str(artifacts), art_style))
+        data_rows.append(row)
 
-    # Column widths — wide MEMBER col for inline name + email
-    col_widths = [
-        USABLE_WIDTH * 0.32,
-        USABLE_WIDTH * 0.12,
-        USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.16,
-    ]
+    # Column widths — dynamic based on visible columns
+    optional_count = sum([show_role, show_chats, show_projects, show_artifacts])
+    member_w = 0.45 - optional_count * 0.03  # wider member col when fewer optional cols
+    col_widths = [USABLE_WIDTH * member_w]
+    if show_role:
+        col_widths.append(USABLE_WIDTH * 0.12)
+    col_widths.append(USABLE_WIDTH * 0.10)  # Tier
+    col_widths.append(USABLE_WIDTH * 0.10)  # Status
+    if show_chats:
+        col_widths.append(USABLE_WIDTH * 0.10)
+    if show_projects:
+        col_widths.append(USABLE_WIDTH * 0.10)
+    if show_artifacts:
+        col_widths.append(USABLE_WIDTH * 0.16)
 
     table = Table(data_rows, colWidths=col_widths, repeatRows=1)
 

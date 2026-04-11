@@ -1057,6 +1057,13 @@ def _render_member_directory(data, comp, idx):
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
     chat_lookup = {u["name"]: u["count"] for u in top_chats}
 
+    # Column visibility from component options (default all visible)
+    opts = comp.get("options") or {}
+    show_role = opts.get("show_role", True)
+    show_chats = opts.get("show_chats", True)
+    show_projects = opts.get("show_projects", True)
+    show_artifacts = opts.get("show_artifacts", True)
+
     rows = ""
     for m in members:
         name = _escape(m.get("name", ""))
@@ -1095,13 +1102,36 @@ def _render_member_directory(data, comp, idx):
                     <div style="font-weight:600;font-size:13px;color:#111827;">{name}{premium_badge}</div>
                     <div style="font-size:11px;color:var(--muted);margin-top:1px;">{email_val}</div>
                 </td>
-                <td style="padding:10px 16px;{role_style}">{role}</td>
+                {'<td style="padding:10px 16px;' + role_style + '">' + role + '</td>' if show_role else ''}
                 <td style="padding:10px 16px;{tier_style}">{tier_label}</td>
                 <td style="padding:10px 16px;">{badge}</td>
-                <td style="padding:10px 16px;text-align:center;{chat_style}">{chats_mtd}</td>
-                <td style="padding:10px 16px;text-align:center;{proj_style}">{projects_mtd}</td>
-                <td style="padding:10px 16px;text-align:center;{art_style}">{artifacts_mtd}</td>
+                {'<td style="padding:10px 16px;text-align:center;' + chat_style + '">' + str(chats_mtd) + '</td>' if show_chats else ''}
+                {'<td style="padding:10px 16px;text-align:center;' + proj_style + '">' + str(projects_mtd) + '</td>' if show_projects else ''}
+                {'<td style="padding:10px 16px;text-align:center;' + art_style + '">' + str(artifacts_mtd) + '</td>' if show_artifacts else ''}
             </tr>"""
+
+    # Build header columns dynamically
+    col_idx = 0
+    header_cols = [f'<th onclick="sortMemberTable_{idx}({col_idx})">Member</th>']
+    col_idx += 1
+    if show_role:
+        header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})">Role</th>')
+        col_idx += 1
+    header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})">Tier</th>')
+    col_idx += 1
+    header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})">Status</th>')
+    col_idx += 1
+    if show_chats:
+        header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})" style="text-align:center;">Chats MTD</th>')
+        col_idx += 1
+    if show_projects:
+        header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})" style="text-align:center;">Projects MTD</th>')
+        col_idx += 1
+    if show_artifacts:
+        header_cols.append(f'<th onclick="sortMemberTable_{idx}({col_idx})" style="text-align:center;">Artifacts MTD</th>')
+        col_idx += 1
+    num_cols = col_idx
+    headers_html = "\n                    ".join(header_cols)
 
     html = f"""
     <div class="table-card">
@@ -1117,13 +1147,7 @@ def _render_member_directory(data, comp, idx):
         <table class="member-table">
             <thead>
                 <tr>
-                    <th onclick="sortMemberTable_{idx}(0)">Member</th>
-                    <th onclick="sortMemberTable_{idx}(1)">Role</th>
-                    <th onclick="sortMemberTable_{idx}(2)">Tier</th>
-                    <th onclick="sortMemberTable_{idx}(3)">Status</th>
-                    <th onclick="sortMemberTable_{idx}(4)" style="text-align:center;">Chats MTD</th>
-                    <th onclick="sortMemberTable_{idx}(5)" style="text-align:center;">Projects MTD</th>
-                    <th onclick="sortMemberTable_{idx}(6)" style="text-align:center;">Artifacts MTD</th>
+                    {headers_html}
                 </tr>
             </thead>
             <tbody id="memberTbody_{idx}">{rows}</tbody>
@@ -1132,7 +1156,7 @@ def _render_member_directory(data, comp, idx):
 
     script = f"""
     (function() {{
-        var sortDir = [1, 1, 1, 1, 1, 1, 1];
+        var sortDir = Array({num_cols}).fill(1);
         window.sortMemberTable_{idx} = function(col) {{
             var tbody = document.getElementById('memberTbody_{idx}');
             var rows = Array.from(tbody.querySelectorAll('tr'));
