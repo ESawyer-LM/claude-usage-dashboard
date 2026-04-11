@@ -169,13 +169,13 @@ def _fetch_subscription(cookie: str, org_id: str) -> dict:
 # ---------------------------------------------------------------------------
 # Analytics — Activity page (/analytics/activity)
 # ---------------------------------------------------------------------------
-def _fetch_activity_overview(cookie: str, org_id: str) -> dict:
+def _fetch_activity_overview(cookie: str, org_id: str, product_filter: str = None) -> dict:
     """DAU, WAU, MAU, utilization, stickiness."""
     try:
-        data = _api_get(
-            f"/api/organizations/{org_id}/analytics/activity/overview",
-            cookie,
-        )
+        path = f"/api/organizations/{org_id}/analytics/activity/overview"
+        if product_filter:
+            path += f"?product_filter={product_filter}"
+        data = _api_get(path, cookie)
         logger.debug(f"Activity overview keys: {list(data.keys())}")
         return data
     except ScrapeError as e:
@@ -183,14 +183,16 @@ def _fetch_activity_overview(cookie: str, org_id: str) -> dict:
         return {}
 
 
-def _fetch_activity_timeseries(cookie: str, org_id: str, metric: str = "dau", days: int = 30) -> list[dict]:
+def _fetch_activity_timeseries(cookie: str, org_id: str, metric: str = "dau", days: int = 30, product_filter: str = None) -> list[dict]:
     """Daily time-series for activity metrics (dau, wau)."""
     try:
-        data = _api_get(
+        path = (
             f"/api/organizations/{org_id}/analytics/activity/timeseries"
-            f"?metric={metric}&days={days}",
-            cookie,
+            f"?metric={metric}&days={days}"
         )
+        if product_filter:
+            path += f"&product_filter={product_filter}"
+        data = _api_get(path, cookie)
         points = data.get("data_points", [])
         logger.debug(f"Activity timeseries '{metric}': {len(points)} data points")
         if points:
@@ -240,7 +242,7 @@ def _fetch_usage_timeseries(cookie: str, org_id: str, metric: str = "chats", day
         return []
 
 
-def _fetch_user_rankings(cookie: str, org_id: str, metric: str = "projects", limit: int = 10) -> list[dict]:
+def _fetch_user_rankings(cookie: str, org_id: str, metric: str = "projects", limit: int = 10, product_filter: str = None) -> list[dict]:
     """
     Top users by metric (projects, artifacts, chats).
     Endpoint: /analytics/users/rankings?metric=projects&start_date=...&limit=10
@@ -249,11 +251,13 @@ def _fetch_user_rankings(cookie: str, org_id: str, metric: str = "projects", lim
     today = datetime.now(timezone.utc).date()
     first_of_month = today.replace(day=1).strftime("%Y-%m-%d")
     try:
-        data = _api_get(
+        path = (
             f"/api/organizations/{org_id}/analytics/users/rankings"
-            f"?metric={metric}&start_date={first_of_month}&limit={limit}",
-            cookie,
+            f"?metric={metric}&start_date={first_of_month}&limit={limit}"
         )
+        if product_filter:
+            path += f"&product_filter={product_filter}"
+        data = _api_get(path, cookie)
         users = data.get("users", [])
         logger.debug(f"User rankings '{metric}': {len(users)} users (start_date={first_of_month})")
         return users
@@ -363,8 +367,9 @@ SCRAPER_STAGES = [
     {"key": "seats",        "label": "Fetching seats & subscription","weight": 10},
     {"key": "activity",     "label": "Fetching activity metrics",   "weight": 15},
     {"key": "usage",        "label": "Fetching usage metrics",      "weight": 15},
-    {"key": "claude_code",  "label": "Fetching Claude Code stats",  "weight": 20},
-    {"key": "processing",   "label": "Processing & caching data",   "weight": 10},
+    {"key": "claude_code",  "label": "Fetching Claude Code stats",  "weight": 15},
+    {"key": "cowork",       "label": "Fetching Cowork stats",       "weight": 10},
+    {"key": "processing",   "label": "Processing & caching data",   "weight":  5},
     {"key": "complete",     "label": "Scrape complete",             "weight":  5},
 ]
 # Weights sum to 100
@@ -516,6 +521,17 @@ def scrape(progress_callback=None) -> dict:
             u["name"] = email_to_name.get(email, email.split("@")[0].replace(".", " ").title())
         logger.info(f"Claude Code users: {len(cc_users)}")
 
+        # --- Cowork analytics ---
+        _report_progress(progress_callback, "cowork", 80, "Fetching Cowork stats")
+        logger.info("Fetching Cowork metrics...")
+        cowork_dau_points = _fetch_activity_timeseries(cookie, org_id, metric="dau", days=30, product_filter="cowork")
+        cowork_dau_chart = _timeseries_to_chart(cowork_dau_points)
+        logger.info(f"Cowork DAU: {len(cowork_dau_chart['data'])} data points")
+
+        cowork_top_users_rankings = _fetch_user_rankings(cookie, org_id, metric="chats", limit=10, product_filter="cowork")
+        cowork_top_users = _rankings_to_top_users(cowork_top_users_rankings, members)
+        logger.info(f"Cowork top users: {len(cowork_top_users)}")
+
         # Build Claude Code activity timeseries for chart
         cc_activity_chart = {"labels": [], "data": []}
         cc_activity_series = cc_timeseries.get("activity", [])
@@ -547,7 +563,7 @@ def scrape(progress_callback=None) -> dict:
             value = dp.get("lines_of_code", dp.get("total_lines_accepted", dp.get("value", 0)))
             cc_lines_chart["data"].append(int(value) if value else 0)
 
-        _report_progress(progress_callback, "processing", 85, "Processing & caching data")
+        _report_progress(progress_callback, "processing", 90, "Processing & caching data")
 
         now = datetime.now(timezone.utc).isoformat()
         result = {
@@ -571,6 +587,10 @@ def scrape(progress_callback=None) -> dict:
                 "activity_chart": cc_activity_chart,
                 "lines_chart": cc_lines_chart,
             },
+            "cowork": {
+                "dau_chart": cowork_dau_chart,
+                "top_users": cowork_top_users,
+            },
             "from_cache": False,
         }
 
@@ -584,6 +604,8 @@ def scrape(progress_callback=None) -> dict:
             f"{len(top_projects)} top project users, "
             f"{len(top_artifacts)} top artifact users, "
             f"{len(cc_users)} Claude Code users, "
+            f"{len(cowork_dau_chart['data'])} Cowork DAU points, "
+            f"{len(cowork_top_users)} Cowork top users, "
             f"seats: {total_seats}, plan: {plan_tier}"
         )
         return result

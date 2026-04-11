@@ -240,6 +240,15 @@ def generate_executive_summary(data: dict, components: list, date_range: dict = 
             f"Claude Code saw {lines:,} lines accepted across {users} active users."
         )
 
+    # Cowork
+    cowork = data.get("cowork", {})
+    cowork_dau = cowork.get("dau_chart", {}).get("data", [])
+    if "cowork_dau_chart" in component_keys and cowork_dau:
+        peak_dau = max(cowork_dau)
+        sentences.append(
+            f"Claude Cowork reached a peak of {peak_dau} daily active users over the past 30 days."
+        )
+
     return " ".join(sentences) if sentences else "No data available to generate a summary."
 
 
@@ -999,6 +1008,81 @@ def _render_cc_user_table(data, comp, idx):
     </div>"""
 
 
+def _render_cowork_dau_chart(data, comp, idx):
+    cowork = data.get("cowork", {})
+    dau_chart = cowork.get("dau_chart", {"labels": [], "data": []})
+    canvas_id = f"coworkDau_{idx}"
+    if not dau_chart.get("data"):
+        return f"""
+    <div class="chart-card">
+        <h3>Cowork Daily Active Users</h3>
+        <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px;">No Cowork data available</div>
+    </div>"""
+    return f"""
+    <div class="chart-card">
+        <h3>Cowork Daily Active Users</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'line',
+        data: {{
+            labels: {json.dumps(dau_chart.get("labels", []))},
+            datasets: [{{
+                label: 'Cowork DAU',
+                data: {json.dumps(dau_chart.get("data", []))},
+                borderColor: '#0891b2',
+                backgroundColor: 'rgba(8, 145, 178, 0.08)',
+                fill: true, tension: 0.3,
+                pointBackgroundColor: '#ffffff', pointBorderColor: '#0891b2',
+                pointBorderWidth: 2, pointRadius: 3, pointHoverRadius: 5
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false,
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                x: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
+def _render_cowork_top_users(data, comp, idx):
+    cowork = data.get("cowork", {})
+    top_users = cowork.get("top_users", [])
+    canvas_id = f"coworkTopUsers_{idx}"
+    if not top_users:
+        return f"""
+    <div class="chart-card">
+        <h3>Top Cowork Users MTD</h3>
+        <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px;">No Cowork user data available</div>
+    </div>"""
+    return f"""
+    <div class="chart-card">
+        <h3>Top Cowork Users MTD</h3>
+        <canvas id="{canvas_id}"></canvas>
+    </div>""", f"""
+    new Chart(document.getElementById('{canvas_id}'), {{
+        type: 'bar',
+        data: {{
+            labels: {json.dumps([u["name"] for u in top_users])},
+            datasets: [{{
+                label: 'Chats', data: {json.dumps([u["count"] for u in top_users])},
+                backgroundColor: ["#0891b2","#22d3ee","#67e8f9","#a5f3fc","#cffafe"].slice(0, {len(top_users)}), borderRadius: 4, barThickness: 20
+            }}]
+        }},
+        options: {{
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: {{ legend: {{ display: false }} }},
+            scales: {{
+                x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                y: {{ grid: {{ display: false }} }}
+            }}
+        }}
+    }});"""
+
+
 def _render_member_directory(data, comp, idx):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -1204,11 +1288,13 @@ def generate_report_html(data: dict, report_config: dict) -> str:
         "wau_trend": "wau",
         "wau_stats_tile": "wau",
         "claude_code_stats": "claude_code",
+        "cowork_dau_chart": "cowork",
         "member_directory": "members",
     }
     _SECTION_TEXT = {
         "activity": "Activity Analytics \u00b7 Claude.ai/Analytics \u00b7 MTD \u00b7 Updated Daily",
         "wau": "Weekly Active Users \u00b7 Claude.ai/Analytics \u00b7 Rolling 7-Day Window",
+        "cowork": "Cowork Analytics \u00b7 Claude.ai/Analytics \u00b7 Last 30 Days",
         "members": "All Members",
     }
     seen_sections = set()
@@ -1276,6 +1362,10 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             result = _render_cc_top_users(comp_data, comp, idx)
         elif key == "cc_user_table":
             result = _render_cc_user_table(comp_data, comp, idx)
+        elif key == "cowork_dau_chart":
+            result = _render_cowork_dau_chart(comp_data, comp, idx)
+        elif key == "cowork_top_users":
+            result = _render_cowork_top_users(comp_data, comp, idx)
         elif key == "member_directory":
             result = _render_member_directory(comp_data, comp, idx)
         elif key == "executive_summary":

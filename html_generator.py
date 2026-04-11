@@ -146,6 +146,12 @@ def generate_html(data: dict, report_type: str = None) -> str:
     cc_users = cc.get("users", [])
     cc_activity_chart = cc.get("activity_chart", {"labels": [], "data": []})
     cc_lines_chart = cc.get("lines_chart", {"labels": [], "data": []})
+
+    # Cowork metrics
+    cowork = data.get("cowork", {})
+    cowork_dau_chart = cowork.get("dau_chart", {"labels": [], "data": []})
+    cowork_top_users = cowork.get("top_users", [])
+
     cc_active_users = cc_summary.get("active_users", 0)
     cc_sessions = cc_summary.get("total_sessions", 0)
     cc_lines = cc_summary.get("total_lines_accepted", 0)
@@ -178,6 +184,12 @@ def generate_html(data: dict, report_type: str = None) -> str:
     chat_user_counts_json = json.dumps([u["count"] for u in top_chats])
     dau_labels_json = json.dumps(dau_chart.get("labels", []))
     dau_data_json = json.dumps(dau_chart.get("data", []))
+
+    # Cowork chart data
+    cowork_dau_labels_json = json.dumps(cowork_dau_chart.get("labels", []))
+    cowork_dau_data_json = json.dumps(cowork_dau_chart.get("data", []))
+    cowork_user_names_json = json.dumps([u["name"] for u in cowork_top_users])
+    cowork_user_counts_json = json.dumps([u["count"] for u in cowork_top_users])
 
     # WAU chart data (used in activity section)
     wau_chart_data = data.get("wau_chart", {"labels": [], "data": []})
@@ -575,6 +587,22 @@ def generate_html(data: dict, report_type: str = None) -> str:
         </div>
         '''}
 
+        {"" if "cowork" not in sections else f'''<!-- Cowork Analytics -->
+        <div style="margin-bottom:20px;">
+            <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Cowork Analytics (Last 30 Days)</h3>
+            <div class="charts-row-2">
+                <div class="chart-card">
+                    <h3>Cowork Daily Active Users</h3>
+                    <canvas id="coworkDauChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>Top Cowork Users MTD</h3>
+                    <canvas id="coworkTopUsersChart"></canvas>
+                </div>
+            </div>
+        </div>
+        '''}
+
         {"" if "members" not in sections else f'''<!-- Member Directory -->
         <div class="table-card">
             <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Member Directory</h3>
@@ -927,6 +955,63 @@ def generate_html(data: dict, report_type: str = None) -> str:
             }});
             rows.forEach(r => tbody.appendChild(r));
         }}
+        '''}
+
+        {"" if "cowork" not in sections else f'''
+        // Cowork DAU Line Chart
+        new Chart(document.getElementById('coworkDauChart'), {{
+            type: 'line',
+            data: {{
+                labels: {cowork_dau_labels_json},
+                datasets: [{{
+                    label: 'Cowork DAU',
+                    data: {cowork_dau_data_json},
+                    borderColor: '#0891b2',
+                    backgroundColor: 'rgba(8, 145, 178, 0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#0891b2',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    x: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
+
+        // Cowork Top Users Bar Chart
+        new Chart(document.getElementById('coworkTopUsersChart'), {{
+            type: 'bar',
+            data: {{
+                labels: {cowork_user_names_json},
+                datasets: [{{
+                    label: 'Chats',
+                    data: {cowork_user_counts_json},
+                    backgroundColor: ['#0891b2','#22d3ee','#67e8f9','#a5f3fc','#cffafe'].slice(0, {len(cowork_top_users)}),
+                    borderRadius: 4,
+                    barThickness: 20
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    x: {{ beginAtZero: true, grid: {{ color: '#f3f4f6' }} }},
+                    y: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
         '''}
 
         {"" if "members" not in sections else f'''

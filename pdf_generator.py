@@ -1121,6 +1121,64 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             story.append(Spacer(1, 18))
 
     # =======================================================================
+    # COWORK
+    # =======================================================================
+    if "cowork" in sections:
+        cowork = data.get("cowork", {})
+        cowork_dau = cowork.get("dau_chart", {"labels": [], "data": []})
+        cowork_top_users = cowork.get("top_users", [])
+        cowork_dau_data = cowork_dau.get("data", [])
+        cowork_dau_labels = cowork_dau.get("labels", [])
+
+        CW_TEAL = "#0891b2"
+        CW_TEAL_RGB = (8 / 255, 145 / 255, 178 / 255)
+
+        if cowork_dau_data or cowork_top_users:
+            story.append(SectionHeader(f"Cowork \u00b7 {month_str}", color=CW_TEAL))
+            story.append(Spacer(1, 10))
+
+        if cowork_dau_data:
+            fig = _make_line_chart(
+                cowork_dau_labels, cowork_dau_data,
+                "Cowork Daily Active Users",
+                color=CW_TEAL, color_rgb=CW_TEAL_RGB,
+                show_labels=len(cowork_dau_data) <= 14,
+            )
+            img = _fig_to_image(fig, USABLE_WIDTH - 8, 2.2 * inch)
+            chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+            chart_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+            story.append(Spacer(1, 14))
+
+        if cowork_top_users:
+            fig = _make_hbar_chart(
+                [u["name"] for u in cowork_top_users],
+                [u["count"] for u in cowork_top_users],
+                "Top Cowork Users (Chats MTD)",
+                color=CW_TEAL,
+            )
+            h = max(1.5, len(cowork_top_users) * 0.35 + 0.8) * inch
+            img = _fig_to_image(fig, USABLE_WIDTH - 8, h)
+            chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+            chart_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+            story.append(Spacer(1, 14))
+
+    # =======================================================================
     # ALL MEMBERS
     # =======================================================================
     if "members" in sections:
