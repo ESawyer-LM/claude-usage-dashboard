@@ -2,6 +2,14 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.7] - 2026-04-11
+
+### Fixed
+- Fix install.sh to copy all `.py` files using wildcard instead of hardcoded list that was missing `report_pdf_generator.py`, `report_html_generator.py`, `report_storage.py`, `report_builder.py`, and `progress.py`
+- Add overlay copy step after `git pull` in install.sh to catch silent pull failures
+- Fix PDF crash from stale deployed files caused by incomplete install
+- Add global Flask exception handler — logs full tracebacks to `dashboard.log` instead of generic 500 pages
+
 ## [0.11.6] - 2026-04-11
 
 ### Added
