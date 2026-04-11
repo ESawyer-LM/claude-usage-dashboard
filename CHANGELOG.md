@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.4] - 2026-04-11
+
+### Fixed
+- Fix missing cowork stage in report builder progress modal — `report_builder.py` has its own duplicate `SCRAPER_STAGES` list separate from `admin.py`
+
 ## [0.11.3] - 2026-04-11
 
 ### Fixed
