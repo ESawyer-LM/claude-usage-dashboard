@@ -65,6 +65,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
         report_type = config.DEFAULT_REPORT_TYPE
     rt_config = config.REPORT_TYPES.get(report_type, config.REPORT_TYPES[config.DEFAULT_REPORT_TYPE])
     sections = set(rt_config["sections"])
+    logger.debug(f"Generating HTML: report_type={report_type}, sections={sections}, from_cache={data.get('from_cache', False)}")
     members = data.get("members", [])
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
     top_projects = data.get("top_users_projects", [])
@@ -75,6 +76,8 @@ def generate_html(data: dict, report_type: str = None) -> str:
     cache_reason = data.get("cache_reason", "")
     scraped_at = data.get("scraped_at", "")
     overview = data.get("activity_overview", {})
+    logger.debug(f"HTML data: {len(members)} members, {len(daily_chats.get('data', []))} chat points, "
+                 f"{len(top_projects)} top projects, {len(top_artifacts)} top artifacts")
 
     # Compute stats — prefer API counts over counting members list
     active_count = data.get("active_members", sum(1 for m in members if m.get("status") == "Active"))
@@ -984,4 +987,5 @@ def save_html(data: dict, output_dir: str = None, report_type: str = None) -> st
         f.write(html_content)
 
     logger.info(f"HTML dashboard saved to {filepath}")
+    logger.debug(f"HTML size: {len(html_content) / 1024:.1f} KB")
     return filepath

@@ -35,6 +35,8 @@ def main():
     config.load_settings()
 
     logger.info("Claude Usage Dashboard starting...")
+    logger.debug(f"Args: now={args.now}, schedule={args.schedule}, no_admin={args.no_admin}")
+    logger.debug(f"Version: {config.VERSION}, output_dir: {config.OUTPUT_DIR}")
 
     # --now mode: run once and exit
     if args.now:

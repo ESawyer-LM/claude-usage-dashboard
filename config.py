@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.10.13"
+VERSION = "0.10.14"
 
 import json
 import logging
@@ -584,6 +584,7 @@ def get_logger() -> logging.Logger:
     logger.addHandler(ch)
 
     _logger = logger
+    logger.info(f"Logger initialized: level={log_level_str}, log_file={LOG_FILE}")
     return logger
 
 

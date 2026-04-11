@@ -2,6 +2,18 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.14] - 2026-04-11
+
+### Added
+- DEBUG-level logging throughout the application for troubleshooting:
+  - **scraper.py**: API request/response details, response keys, pagination, data point counts, timeseries sample data, member counts, seat tier calculations
+  - **emailer.py**: SMTP config, connection type, PDF attachment size, test connection details
+  - **scheduler.py**: Trigger construction, schedule config, biweekly skip logic, job registration/removal counts
+  - **html_generator.py**: Report type/sections, data shape summary, output size
+  - **pdf_generator.py**: Report type/sections, flowable count, output path
+  - **main.py**: Startup args, version, output directory
+  - **config.py**: Logger initialization level and log file path
+
 ## [0.10.13] - 2026-04-11
 
 ### Added
