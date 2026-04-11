@@ -402,7 +402,7 @@ def _make_hbar_chart(names, counts, title, color=LM_RED):
 # ---------------------------------------------------------------------------
 # Member directory table
 # ---------------------------------------------------------------------------
-def _build_member_table(members, top_projects, top_artifacts):
+def _build_member_table(members, top_projects, top_artifacts, top_chats=None):
     """Build a ReportLab Table for the member directory."""
     styles = getSampleStyleSheet()
 
@@ -419,6 +419,7 @@ def _build_member_table(members, top_projects, top_artifacts):
 
     project_lookup = {u["name"]: u["count"] for u in top_projects}
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
+    chat_lookup = {u["name"]: u["count"] for u in (top_chats or [])}
 
     # Header row
     headers = [
@@ -426,6 +427,7 @@ def _build_member_table(members, top_projects, top_artifacts):
         Paragraph("ROLE", header_center),
         Paragraph("TIER", header_center),
         Paragraph("STATUS", header_center),
+        Paragraph("CHATS", header_center),
         Paragraph("PROJ", header_center),
         Paragraph("ARTIFACTS", header_center),
     ]
@@ -439,6 +441,7 @@ def _build_member_table(members, top_projects, top_artifacts):
         seat_tier = m.get("seat_tier", "team_standard")
         is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
         tier_label = "Premium" if is_premium else "Standard"
+        chats = chat_lookup.get(name, 0)
         projects = project_lookup.get(name, 0)
         artifacts = artifact_lookup.get(name, 0)
 
@@ -477,7 +480,8 @@ def _build_member_table(members, top_projects, top_artifacts):
                 cell_center,
             )
 
-        # Projects/Artifacts - bold if > 0
+        # Chats/Projects/Artifacts - bold if > 0
+        chat_s = cell_center_bold if chats > 0 else cell_center
         proj_style = cell_center_bold if projects > 0 else cell_center
         art_style = cell_center_bold if artifacts > 0 else cell_center
 
@@ -486,18 +490,20 @@ def _build_member_table(members, top_projects, top_artifacts):
             role_p,
             Paragraph(tier_label, cell_center),
             status_p,
+            Paragraph(str(chats), chat_s),
             Paragraph(str(projects), proj_style),
             Paragraph(str(artifacts), art_style),
         ])
 
     # Column widths — wide MEMBER col for inline name + email
     col_widths = [
-        USABLE_WIDTH * 0.38,
-        USABLE_WIDTH * 0.13,
+        USABLE_WIDTH * 0.32,
+        USABLE_WIDTH * 0.12,
         USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.11,
         USABLE_WIDTH * 0.10,
-        USABLE_WIDTH * 0.18,
+        USABLE_WIDTH * 0.10,
+        USABLE_WIDTH * 0.10,
+        USABLE_WIDTH * 0.16,
     ]
 
     table = Table(data_rows, colWidths=col_widths, repeatRows=1)
@@ -1159,7 +1165,7 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
     # =======================================================================
     if "members" in sections:
         if members:
-            member_table = _build_member_table(members, top_projects, top_artifacts)
+            member_table = _build_member_table(members, top_projects, top_artifacts, top_chats)
             story.append(KeepTogether([
                 SectionHeader("All Members"),
                 Spacer(1, 10),

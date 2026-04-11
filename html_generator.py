@@ -160,6 +160,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
     # Build member project/artifact lookup from top_users data
     project_lookup = {u["name"]: u["count"] for u in top_projects}
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
+    chat_lookup = {u["name"]: u["count"] for u in top_chats}
 
     # Chart data as JSON
     chat_labels_json = json.dumps(daily_chats.get("labels", []))
@@ -221,6 +222,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
         seat_tier = m.get("seat_tier", "team_standard")
         is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
         tier_label = "Premium" if is_premium else "Standard"
+        chats_mtd = chat_lookup.get(m.get("name", ""), 0)
         projects_mtd = project_lookup.get(m.get("name", ""), 0)
         artifacts_mtd = artifact_lookup.get(m.get("name", ""), 0)
 
@@ -233,6 +235,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         role_style = 'color:#C8102E;font-weight:600;' if 'owner' in role.lower() else 'color:#374151;'
         tier_style = 'color:#7c3aed;font-weight:600;' if is_premium else 'color:#6b7280;font-size:12px;'
+        chat_style = 'color:#C8102E;font-weight:700;' if chats_mtd > 0 else 'color:#6b7280;'
         proj_style = 'color:#C8102E;font-weight:700;' if projects_mtd > 0 else 'color:#6b7280;'
         art_style = 'color:#C8102E;font-weight:700;' if artifacts_mtd > 0 else 'color:#6b7280;'
 
@@ -245,6 +248,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     <td style="padding:10px 16px;{role_style}">{role}</td>
                     <td style="padding:10px 16px;{tier_style}">{tier_label}</td>
                     <td style="padding:10px 16px;">{badge}</td>
+                    <td style="padding:10px 16px;text-align:center;{chat_style}">{chats_mtd}</td>
                     <td style="padding:10px 16px;text-align:center;{proj_style}">{projects_mtd}</td>
                     <td style="padding:10px 16px;text-align:center;{art_style}">{artifacts_mtd}</td>
                 </tr>"""
@@ -608,12 +612,13 @@ def generate_html(data: dict, report_type: str = None) -> str:
             <table class="member-table">
                 <thead>
                     <tr>
-                        <th onclick="sortTable(0)" style="width:30%;">Member</th>
-                        <th onclick="sortTable(1)" style="width:14%;">Role</th>
-                        <th onclick="sortTable(2)" style="width:12%;">Tier</th>
-                        <th onclick="sortTable(3)" style="width:14%;">Status</th>
-                        <th onclick="sortTable(4)" style="text-align:center;width:15%;">Projects MTD</th>
-                        <th onclick="sortTable(5)" style="text-align:center;width:15%;">Artifacts MTD</th>
+                        <th onclick="sortTable(0)" style="width:26%;">Member</th>
+                        <th onclick="sortTable(1)" style="width:12%;">Role</th>
+                        <th onclick="sortTable(2)" style="width:10%;">Tier</th>
+                        <th onclick="sortTable(3)" style="width:12%;">Status</th>
+                        <th onclick="sortTable(4)" style="text-align:center;width:13%;">Chats MTD</th>
+                        <th onclick="sortTable(5)" style="text-align:center;width:13%;">Projects MTD</th>
+                        <th onclick="sortTable(6)" style="text-align:center;width:14%;">Artifacts MTD</th>
                     </tr>
                 </thead>
                 <tbody id="memberTableBody">
@@ -982,7 +987,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
 
         {"" if "members" not in sections else f'''
         // --- Table Sorting ---
-        let sortDir = [1, 1, 1, 1, 1, 1];
+        let sortDir = [1, 1, 1, 1, 1, 1, 1];
         function sortTable(col) {{
             const tbody = document.getElementById('memberTableBody');
             const rows = Array.from(tbody.querySelectorAll('tr'));

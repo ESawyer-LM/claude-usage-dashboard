@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.5] - 2026-04-11
+
+### Added
+- "Chats MTD" column in Member Directory table (between Status and Projects MTD) across all report outputs
+
 ## [0.11.4] - 2026-04-11
 
 ### Fixed

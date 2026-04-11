@@ -1052,8 +1052,10 @@ def _render_member_directory(data, comp, idx):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
     top_artifacts = data.get("top_users_artifacts", [])
+    top_chats = data.get("top_users_chats", [])
     project_lookup = {u["name"]: u["count"] for u in top_projects}
     artifact_lookup = {u["name"]: u["count"] for u in top_artifacts}
+    chat_lookup = {u["name"]: u["count"] for u in top_chats}
 
     rows = ""
     for m in members:
@@ -1064,6 +1066,7 @@ def _render_member_directory(data, comp, idx):
         seat_tier = m.get("seat_tier", "team_standard")
         is_premium = "tier_1" in seat_tier.lower() or "premium" in seat_tier.lower()
         tier_label = "Premium" if is_premium else "Standard"
+        chats_mtd = chat_lookup.get(m.get("name", ""), 0)
         projects_mtd = project_lookup.get(m.get("name", ""), 0)
         artifacts_mtd = artifact_lookup.get(m.get("name", ""), 0)
 
@@ -1081,7 +1084,8 @@ def _render_member_directory(data, comp, idx):
         # Tier cell styling
         tier_style = 'color:var(--purple);font-weight:600;' if is_premium else 'color:var(--muted);font-size:12px;'
 
-        # Projects/Artifacts conditional formatting
+        # Chats/Projects/Artifacts conditional formatting
+        chat_style = 'color:var(--red);font-weight:700;' if chats_mtd > 0 else 'color:var(--muted);'
         proj_style = 'color:var(--red);font-weight:700;' if projects_mtd > 0 else 'color:var(--muted);'
         art_style = 'color:var(--red);font-weight:700;' if artifacts_mtd > 0 else 'color:var(--muted);'
 
@@ -1094,6 +1098,7 @@ def _render_member_directory(data, comp, idx):
                 <td style="padding:10px 16px;{role_style}">{role}</td>
                 <td style="padding:10px 16px;{tier_style}">{tier_label}</td>
                 <td style="padding:10px 16px;">{badge}</td>
+                <td style="padding:10px 16px;text-align:center;{chat_style}">{chats_mtd}</td>
                 <td style="padding:10px 16px;text-align:center;{proj_style}">{projects_mtd}</td>
                 <td style="padding:10px 16px;text-align:center;{art_style}">{artifacts_mtd}</td>
             </tr>"""
@@ -1116,8 +1121,9 @@ def _render_member_directory(data, comp, idx):
                     <th onclick="sortMemberTable_{idx}(1)">Role</th>
                     <th onclick="sortMemberTable_{idx}(2)">Tier</th>
                     <th onclick="sortMemberTable_{idx}(3)">Status</th>
-                    <th onclick="sortMemberTable_{idx}(4)" style="text-align:center;">Projects MTD</th>
-                    <th onclick="sortMemberTable_{idx}(5)" style="text-align:center;">Artifacts MTD</th>
+                    <th onclick="sortMemberTable_{idx}(4)" style="text-align:center;">Chats MTD</th>
+                    <th onclick="sortMemberTable_{idx}(5)" style="text-align:center;">Projects MTD</th>
+                    <th onclick="sortMemberTable_{idx}(6)" style="text-align:center;">Artifacts MTD</th>
                 </tr>
             </thead>
             <tbody id="memberTbody_{idx}">{rows}</tbody>
@@ -1126,7 +1132,7 @@ def _render_member_directory(data, comp, idx):
 
     script = f"""
     (function() {{
-        var sortDir = [1, 1, 1, 1, 1, 1];
+        var sortDir = [1, 1, 1, 1, 1, 1, 1];
         window.sortMemberTable_{idx} = function(col) {{
             var tbody = document.getElementById('memberTbody_{idx}');
             var rows = Array.from(tbody.querySelectorAll('tr'));
