@@ -2,6 +2,16 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.3] - 2026-04-11
+
+### Fixed
+- Fix progress modal missing "Fetching Cowork stats" in checklist (lost during squash merge)
+- Remove Cowork top users chart, user table, and per-user ranking API calls — the `/analytics/users/rankings` endpoint silently ignores `product_filter=cowork` and returns identical unfiltered data
+- Cowork section now correctly shows only the DAU chart (the one endpoint that respects the filter)
+
+### Removed
+- `cowork_top_users` and `cowork_user_table` report builder components (data was not Cowork-filtered)
+
 ## [0.11.1] - 2026-04-11
 
 ### Added
