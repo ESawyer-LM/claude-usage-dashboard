@@ -553,14 +553,15 @@ def _pdf_cowork_dau_chart(data):
     ]
 
 
-def _pdf_member_directory(data):
+def _pdf_member_directory(data, comp=None):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
     top_artifacts = data.get("top_users_artifacts", [])
     top_chats = data.get("top_users_chats", [])
     if not members:
         return []
-    table = _build_member_table(members, top_projects, top_artifacts, top_chats)
+    opts = (comp or {}).get("options") or {}
+    table = _build_member_table(members, top_projects, top_artifacts, top_chats, opts)
     return [
         SectionHeader("Member Directory"),
         Spacer(1, 10),
@@ -643,27 +644,27 @@ _COMPONENT_RENDERERS = {
     "stats_row": lambda data, comps: _pdf_stats_row(data),
     "status_pie": lambda data, comps: _pdf_status_pie(data),
     "status_donut": lambda data, comps: _pdf_status_pie(data),
-    "role_pie": lambda data, comps: _pdf_role_pie(data),
-    "role_donut": lambda data, comps: _pdf_role_pie(data),
-    "tier_pie": lambda data, comps: _pdf_tier_pie(data),
-    "activity_metrics": lambda data, comps: _pdf_activity_metrics(data),
-    "usage_stats": lambda data, comps: _pdf_usage_stats(data),
-    "daily_chats": lambda data, comps: _pdf_daily_chats(data),
-    "dau_chart": lambda data, comps: _pdf_dau_chart(data),
-    "wau_trend": lambda data, comps: _pdf_wau_trend(data),
-    "wau_stats_tile": lambda data, comps: _pdf_wau_stats_tile(data),
-    "top_users_projects": lambda data, comps: _pdf_top_users_projects(data),
-    "top_users_artifacts": lambda data, comps: _pdf_top_users_artifacts(data),
-    "top_users_chats": lambda data, comps: _pdf_top_users_chats(data),
-    "claude_code_stats": lambda data, comps: _pdf_claude_code_stats(data),
-    "cc_sessions_chart": lambda data, comps: _pdf_cc_sessions_chart(data),
-    "cc_lines_chart": lambda data, comps: _pdf_cc_lines_chart(data),
-    "cc_top_users": lambda data, comps: _pdf_cc_top_users(data),
-    "cc_user_table": lambda data, comps: _pdf_cc_user_table(data),
-    "cowork_dau_chart": lambda data, comps: _pdf_cowork_dau_chart(data),
-    "member_directory": lambda data, comps: _pdf_member_directory(data),
-    "executive_summary": lambda data, comps: _pdf_executive_summary(data, comps),
-    "email_highlights": lambda data, comps: _pdf_email_highlights(data),
+    "role_pie": lambda data, comps, comp=None: _pdf_role_pie(data),
+    "role_donut": lambda data, comps, comp=None: _pdf_role_pie(data),
+    "tier_pie": lambda data, comps, comp=None: _pdf_tier_pie(data),
+    "activity_metrics": lambda data, comps, comp=None: _pdf_activity_metrics(data),
+    "usage_stats": lambda data, comps, comp=None: _pdf_usage_stats(data),
+    "daily_chats": lambda data, comps, comp=None: _pdf_daily_chats(data),
+    "dau_chart": lambda data, comps, comp=None: _pdf_dau_chart(data),
+    "wau_trend": lambda data, comps, comp=None: _pdf_wau_trend(data),
+    "wau_stats_tile": lambda data, comps, comp=None: _pdf_wau_stats_tile(data),
+    "top_users_projects": lambda data, comps, comp=None: _pdf_top_users_projects(data),
+    "top_users_artifacts": lambda data, comps, comp=None: _pdf_top_users_artifacts(data),
+    "top_users_chats": lambda data, comps, comp=None: _pdf_top_users_chats(data),
+    "claude_code_stats": lambda data, comps, comp=None: _pdf_claude_code_stats(data),
+    "cc_sessions_chart": lambda data, comps, comp=None: _pdf_cc_sessions_chart(data),
+    "cc_lines_chart": lambda data, comps, comp=None: _pdf_cc_lines_chart(data),
+    "cc_top_users": lambda data, comps, comp=None: _pdf_cc_top_users(data),
+    "cc_user_table": lambda data, comps, comp=None: _pdf_cc_user_table(data),
+    "cowork_dau_chart": lambda data, comps, comp=None: _pdf_cowork_dau_chart(data),
+    "member_directory": lambda data, comps, comp=None: _pdf_member_directory(data, comp),
+    "executive_summary": lambda data, comps, comp=None: _pdf_executive_summary(data, comps),
+    "email_highlights": lambda data, comps, comp=None: _pdf_email_highlights(data),
 }
 
 
@@ -766,7 +767,7 @@ def generate_report_pdf(data: dict, report_config: dict, output_dir: str = None)
         elif global_start and global_end:
             comp_data = filter_data_by_range(data, global_start, global_end)
 
-        flowables = renderer(comp_data, components)
+        flowables = renderer(comp_data, components, comp)
         if key in _PIE_KEYS:
             pie_buf.append(flowables)
         else:

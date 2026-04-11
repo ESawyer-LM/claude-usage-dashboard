@@ -990,7 +990,10 @@ function renderPalette() {
 function toggleComponent(checkbox) {
     var key = checkbox.getAttribute('data-key');
     if (checkbox.checked) {
-        canvasItems.push({key: key, enabled: true, order: canvasItems.length, date_range: null});
+        var newItem = {key: key, enabled: true, order: canvasItems.length, date_range: null};
+        var meta = componentsMeta.find(function(m) { return m.key === key; });
+        if (meta && meta.default_options) newItem.options = JSON.parse(JSON.stringify(meta.default_options));
+        canvasItems.push(newItem);
     } else {
         canvasItems = canvasItems.filter(function(ci) { return ci.key !== key; });
     }
@@ -1012,14 +1015,38 @@ function renderCanvas() {
         var meta = componentsMeta.find(function(m) { return m.key === item.key; });
         var label = meta ? meta.label : item.key;
         var supportsDate = meta && meta.supports_date_range;
+        var hasOptions = meta && meta.default_options;
         html += '<div class="canvas-item" data-idx="' + idx + '" data-key="' + item.key + '">' +
             '<span class="drag-handle">&#9776;</span>' +
             '<span class="item-label">' + label + '</span>';
+        if (hasOptions) {
+            html += '<span class="date-toggle" data-key="' + item.key + '" data-action="options" title="Column settings">&#9881;</span>';
+        }
         if (supportsDate) {
             html += '<span class="date-toggle" data-key="' + item.key + '" data-action="date">&#128197;</span>';
         }
         html += '<span class="item-remove" data-key="' + item.key + '" data-action="remove">&times;</span>';
         html += '</div>';
+        if (hasOptions) {
+            var opts = item.options || meta.default_options || {};
+            var optsVis = item._optionsVisible ? ' visible' : '';
+            html += '<div class="date-override' + optsVis + '" id="optionsPanel_' + item.key + '">' +
+                '<label style="font-size:11px;color:#6b7280;margin-bottom:4px;display:block;">Visible columns</label>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+            var colDefs = [
+                {field: 'show_role', label: 'Role'},
+                {field: 'show_chats', label: 'Chats MTD'},
+                {field: 'show_projects', label: 'Projects MTD'},
+                {field: 'show_artifacts', label: 'Artifacts MTD'}
+            ];
+            colDefs.forEach(function(col) {
+                var checked = opts[col.field] !== false ? ' checked' : '';
+                html += '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;">' +
+                    '<input type="checkbox" data-key="' + item.key + '" data-option="' + col.field + '" data-action="colopt"' + checked + '> ' + col.label +
+                    '</label>';
+            });
+            html += '</div></div>';
+        }
         if (supportsDate) {
             var dr = item.date_range || {};
             var hasOverride = dr.mode === 'relative' || dr.mode === 'absolute';
@@ -1050,6 +1077,12 @@ function renderCanvas() {
     });
     el.querySelectorAll('[data-action="date"]').forEach(function(btn) {
         btn.addEventListener('click', function() { toggleDateOverride(btn.getAttribute('data-key')); });
+    });
+    el.querySelectorAll('[data-action="options"]').forEach(function(btn) {
+        btn.addEventListener('click', function() { toggleOptionsPanel(btn.getAttribute('data-key')); });
+    });
+    el.querySelectorAll('[data-action="colopt"]').forEach(function(cb) {
+        cb.addEventListener('change', function() { updateColOption(cb.getAttribute('data-key'), cb.getAttribute('data-option'), cb.checked); });
     });
     // Per-component date mode/days/fixed change handlers
     el.querySelectorAll('[data-action="compmode"]').forEach(function(radio) {
@@ -1275,6 +1308,22 @@ function dndPointerUp(e) {
         enabled.forEach(function(c, i) { c.order = i; });
     }
     renderCanvas();
+}
+
+// --- Column options ---
+function toggleOptionsPanel(key) {
+    var el = document.getElementById('optionsPanel_' + key);
+    if (el) {
+        el.classList.toggle('visible');
+        var item = canvasItems.find(function(c) { return c.key === key; });
+        if (item) item._optionsVisible = el.classList.contains('visible');
+    }
+}
+function updateColOption(key, field, checked) {
+    var item = canvasItems.find(function(c) { return c.key === key; });
+    if (!item) return;
+    if (!item.options) item.options = {show_role: true, show_chats: true, show_projects: true, show_artifacts: true};
+    item.options[field] = checked;
 }
 
 // --- Date overrides ---

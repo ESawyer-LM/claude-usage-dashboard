@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.6] - 2026-04-11
+
+### Added
+- Column visibility checkboxes in report builder for Member Directory — toggle Role, Chats MTD, Projects MTD, and Artifacts MTD columns via gear icon on the component card
+- Options persist per-report and are respected by both HTML and PDF custom report renderers
+
 ## [0.11.5] - 2026-04-11
 
 ### Added
