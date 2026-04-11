@@ -488,11 +488,17 @@ def scrape(progress_callback=None) -> dict:
             cc_activity_chart["data"].append(dp.get("sessions_count", 0) or 0)
 
         # Build Claude Code lines-of-code timeseries for chart
-        logger.debug(f"CC timeseries keys: {list(cc_timeseries.keys())}")
+        logger.info(f"CC overview keys: {list(cc_overview.keys())}")
+        logger.info(f"CC timeseries keys: {list(cc_timeseries.keys())}")
         cc_lines_chart = {"labels": [], "data": []}
         lines_series = cc_timeseries.get("lines_of_code", [])
         if lines_series:
-            logger.debug(f"CC lines_of_code sample: {lines_series[:2]}")
+            logger.info(f"CC lines_of_code first entry: {lines_series[0]}")
+        else:
+            # Try to find the correct key
+            for k, v in cc_timeseries.items():
+                if isinstance(v, list) and v:
+                    logger.info(f"CC timeseries['{k}'] sample: {v[0]}")
         for dp in lines_series:
             date_str = dp.get("date", "")
             try:

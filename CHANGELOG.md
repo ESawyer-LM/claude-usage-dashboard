@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.11] - 2026-04-11
+
+### Fixed
+- Add INFO-level logging for CC overview/timeseries keys and sample data points to diagnose zeroed Lines Accepted chart
+
 ## [0.10.10] - 2026-04-11
 
 ### Changed
