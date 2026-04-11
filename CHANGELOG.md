@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.8] - 2026-04-11
+
+### Changed
+- Move navigation menu to left side of navbar on all pages
+
 ## [0.11.7] - 2026-04-11
 
 ### Fixed
