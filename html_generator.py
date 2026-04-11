@@ -245,8 +245,8 @@ def generate_html(data: dict, report_type: str = None) -> str:
         u_initials = _escape(_get_initials(u.get("name", "")))
         u_sessions = u.get("total_sessions", 0)
         u_lines = u.get("total_lines_accepted", 0)
-        u_commits = u.get("commits_created", 0)
-        u_prs_val = u.get("pull_requests_created", 0)
+        u_avg_lines = float(u.get("avg_lines_accepted_per_day", 0) or 0)
+        u_prs_val = u.get("total_prs", u.get("prs_with_cc", 0))
         u_last_active = _escape(u.get("last_active", "—") or "—")
         # Format last_active date if it looks like ISO
         if u_last_active and u_last_active != "—" and len(u_last_active) >= 10:
@@ -265,7 +265,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     </td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_sessions}</td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_lines:,}</td>
-                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_commits}</td>
+                    <td style="padding:12px 16px;text-align:center;color:#374151;">{u_avg_lines:,.0f}</td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
                     <td style="padding:12px 16px;color:#374151;">{u_last_active}</td>
                 </tr>"""
@@ -560,7 +560,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
                         <th onclick="sortCcTable(0)">User</th>
                         <th onclick="sortCcTable(1)" style="text-align:center;">Sessions</th>
                         <th onclick="sortCcTable(2)" style="text-align:center;">Lines Accepted</th>
-                        <th onclick="sortCcTable(3)" style="text-align:center;">Commits</th>
+                        <th onclick="sortCcTable(3)" style="text-align:center;">Avg Lines/Day</th>
                         <th onclick="sortCcTable(4)" style="text-align:center;">PRs</th>
                         <th onclick="sortCcTable(5)">Last Active</th>
                     </tr>

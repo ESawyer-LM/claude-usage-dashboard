@@ -2,6 +2,13 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.10] - 2026-04-11
+
+### Changed
+- Replace Commits column with Avg Lines/Day in Claude Code User Breakdown table (per-user API has no commits field)
+- Use `total_prs` field for PRs column instead of normalized `prs_with_cc`
+- Remove unnecessary field normalization from scraper now that generators read API fields directly
+
 ## [0.10.9] - 2026-04-11
 
 ### Fixed
