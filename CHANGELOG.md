@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.9] - 2026-04-11
+
+### Fixed
+- Fix per-user API field logging to use INFO level (was DEBUG, which is silently dropped)
+- Log full first user object to reveal actual API field names for commits diagnostics
+
 ## [0.10.8] - 2026-04-11
 
 ### Fixed
