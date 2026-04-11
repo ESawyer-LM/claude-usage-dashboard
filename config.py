@@ -4,7 +4,7 @@ Manages .env (bootstrap secrets) and settings.json (runtime settings).
 Fernet encryption for smtp_pass at rest.
 """
 
-VERSION = "0.10.12"
+VERSION = "0.10.13"
 
 import json
 import logging
@@ -58,6 +58,7 @@ DEFAULT_SETTINGS = {
     "smtp_from_name": "Claude Dashboard",
     "schedules": [],
     "timezone": "America/Chicago",
+    "log_level": "INFO",
 }
 
 # ---------------------------------------------------------------------------
@@ -557,14 +558,18 @@ def get_logger() -> logging.Logger:
 
     _ensure_output_dir()
 
+    settings = load_settings()
+    log_level_str = settings.get("log_level", "INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+
     logger = logging.getLogger("claude_dashboard")
-    logger.setLevel(logging.INFO)
+    logger.setLevel(log_level)
 
     # File handler (rotating, 5MB, 3 backups)
     fh = RotatingFileHandler(
         LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
     )
-    fh.setLevel(logging.INFO)
+    fh.setLevel(log_level)
     fh.setFormatter(
         logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
     )
@@ -572,7 +577,7 @@ def get_logger() -> logging.Logger:
 
     # Console handler
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(log_level)
     ch.setFormatter(
         logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
     )
@@ -580,3 +585,17 @@ def get_logger() -> logging.Logger:
 
     _logger = logger
     return logger
+
+
+def set_log_level(level_str: str) -> bool:
+    """Update log level on the running logger instance."""
+    global _logger
+    if _logger is None:
+        return False
+    level = getattr(logging, level_str.upper(), None)
+    if level is None:
+        return False
+    _logger.setLevel(level)
+    for handler in _logger.handlers:
+        handler.setLevel(level)
+    return True

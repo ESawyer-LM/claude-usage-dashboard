@@ -258,6 +258,20 @@ def create_app(scheduler_ref=None):
         logger.info("SMTP settings updated via admin UI")
         return jsonify({"ok": True, "message": "SMTP settings saved"})
 
+    @app.route("/api/save-log-level", methods=["POST"])
+    @login_required
+    def api_save_log_level():
+        log_level = request.form.get("log_level", "INFO").strip().upper()
+        valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+        if log_level not in valid_levels:
+            return jsonify({"ok": False, "error": f"Invalid log level. Choose from: {', '.join(valid_levels)}"}), 400
+        settings = config.load_settings()
+        settings["log_level"] = log_level
+        config.save_settings(settings)
+        config.set_log_level(log_level)
+        logger.info(f"Log level changed to {log_level} via admin UI")
+        return jsonify({"ok": True, "message": f"Log level set to {log_level}"})
+
     @app.route("/api/test-smtp", methods=["POST"])
     @login_required
     def api_test_smtp():
@@ -1281,6 +1295,22 @@ DASHBOARD_TEMPLATE = """<!DOCTYPE html>
     </div>
 </div>
 
+<!-- Logging Level -->
+<div class="card tz-card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="status-label" style="white-space:nowrap;">Log Level</span>
+        <form id="logLevelForm" style="display:flex;gap:8px;align-items:center;margin:0;">
+            <select name="log_level" style="width:180px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                {% for lvl in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] %}
+                <option value="{{ lvl }}" {{ 'selected' if settings.get("log_level", "INFO") == lvl }}>{{ lvl }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-red btn-sm">Save</button>
+            <span id="logLevelResult" class="result-span"></span>
+        </form>
+    </div>
+</div>
+
 </div>
 
 <!-- Scrape Refresh Modal -->
@@ -1445,6 +1475,7 @@ function formFetch(formId, url, resultId) {
 
 formFetch('cookieForm', '/api/save-cookie', 'cookieResult');
 formFetch('smtpForm', '/api/save-smtp', 'smtpResult');
+formFetch('logLevelForm', '/api/save-log-level', 'logLevelResult');
 
 // Card 5: Send Test Report — wrapped with refresh modal
 document.getElementById('testForm').addEventListener('submit', function(e) {

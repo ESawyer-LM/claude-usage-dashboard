@@ -2,6 +2,11 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.13] - 2026-04-11
+
+### Added
+- Log level setting in admin UI (DEBUG, INFO, WARNING, ERROR, CRITICAL) with immediate effect on running logger
+
 ## [0.10.12] - 2026-04-11
 
 ### Fixed
