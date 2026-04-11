@@ -259,7 +259,9 @@ def _fetch_user_rankings(cookie: str, org_id: str, metric: str = "projects", lim
             path += f"&product_filter={product_filter}"
         data = _api_get(path, cookie)
         users = data.get("users", [])
-        logger.debug(f"User rankings '{metric}': {len(users)} users (start_date={first_of_month})")
+        logger.debug(f"User rankings '{metric}' (product_filter={product_filter}): {len(users)} users (start_date={first_of_month}), path={path}")
+        if users:
+            logger.debug(f"User rankings '{metric}' (product_filter={product_filter}) first result: {users[0]}")
         return users
     except ScrapeError as e:
         logger.warning(f"Could not fetch user rankings for {metric}: {e}")
@@ -531,6 +533,12 @@ def scrape(progress_callback=None) -> dict:
         cowork_top_users_rankings = _fetch_user_rankings(cookie, org_id, metric="chats", limit=10, product_filter="cowork")
         cowork_top_users = _rankings_to_top_users(cowork_top_users_rankings, members)
         logger.info(f"Cowork top users: {len(cowork_top_users)}")
+        # Debug: compare cowork vs regular chat rankings to verify filter works
+        if cowork_top_users and top_chats:
+            logger.debug(f"Regular top chats[0]: {top_chats[0]}")
+            logger.debug(f"Cowork top chats[0]: {cowork_top_users[0]}")
+            if cowork_top_users[0].get("count") == top_chats[0].get("count"):
+                logger.warning("Cowork top users matches regular top users — product_filter may not be supported on rankings endpoint")
 
         # Per-user Cowork breakdown (merge chats, projects, artifacts rankings)
         cowork_proj_rankings = _fetch_user_rankings(cookie, org_id, metric="projects", limit=50, product_filter="cowork")
