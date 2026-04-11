@@ -2,6 +2,12 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.10.8] - 2026-04-11
+
+### Fixed
+- Fix Claude Code User Breakdown table showing 0 for Commits and PRs columns by normalizing per-user API field names (`prs_with_cc` → `pull_requests_created`, `commits` → `commits_created`)
+- Add debug logging of per-user API field names to aid future diagnostics
+
 ## [0.10.7] - 2026-04-07
 
 ### Fixed
