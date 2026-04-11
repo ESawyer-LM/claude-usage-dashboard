@@ -1871,6 +1871,7 @@ var SCRAPER_STAGES = [
   {key: "activity",     label: "Fetching activity metrics"},
   {key: "usage",        label: "Fetching usage metrics"},
   {key: "claude_code",  label: "Fetching Claude Code stats"},
+  {key: "cowork",       label: "Fetching Cowork stats"},
   {key: "processing",   label: "Processing & caching data"},
   {key: "complete",     label: "Scrape complete"}
 ];
