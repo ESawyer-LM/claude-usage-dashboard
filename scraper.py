@@ -471,7 +471,8 @@ def scrape(progress_callback=None) -> dict:
         cc_users = _fetch_claude_code_users(cookie, org_id)
         # Log actual per-user fields so we can track API changes
         if cc_users:
-            logger.debug(f"Claude Code per-user fields: {list(cc_users[0].keys())}")
+            logger.info(f"Claude Code per-user fields: {list(cc_users[0].keys())}")
+            logger.info(f"Claude Code per-user sample: {cc_users[0]}")
         # Join with member names and normalize field names for report generators
         email_to_name = {m["email"]: m["name"] for m in members if m.get("email")}
         for u in cc_users:
