@@ -521,6 +521,63 @@ def _pdf_cc_user_table(data):
     ]
 
 
+CW_TEAL = "#0891b2"
+CW_TEAL_RGB = (8 / 255, 145 / 255, 178 / 255)
+
+
+def _pdf_cowork_dau_chart(data):
+    cowork = data.get("cowork", {})
+    dau_chart = cowork.get("dau_chart", {"labels": [], "data": []})
+    vals = dau_chart.get("data", [])
+    labels = dau_chart.get("labels", [])
+    if not vals:
+        return []
+    month_str = datetime.now().strftime("%B %Y")
+    fig = _make_line_chart(labels, vals, "Cowork Daily Active Users",
+                           color=CW_TEAL, color_rgb=CW_TEAL_RGB)
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, 2.2 * inch)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [
+        SectionHeader(f"Cowork \u00b7 {month_str}", color=CW_TEAL),
+        Spacer(1, 10),
+        chart_table,
+        Spacer(1, 14),
+    ]
+
+
+def _pdf_cowork_top_users(data):
+    cowork = data.get("cowork", {})
+    top_users = cowork.get("top_users", [])
+    if not top_users:
+        return []
+    fig = _make_hbar_chart(
+        [u["name"] for u in top_users],
+        [u["count"] for u in top_users],
+        "Top Cowork Users (Chats MTD)",
+        color=CW_TEAL,
+    )
+    h = max(1.5, len(top_users) * 0.35 + 0.8) * inch
+    img = _fig_to_image(fig, USABLE_WIDTH - 8, h)
+    chart_table = Table([[img]], colWidths=[USABLE_WIDTH])
+    chart_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#1a1a1a")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return [chart_table, Spacer(1, 14)]
+
+
 def _pdf_member_directory(data):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -627,6 +684,8 @@ _COMPONENT_RENDERERS = {
     "cc_lines_chart": lambda data, comps: _pdf_cc_lines_chart(data),
     "cc_top_users": lambda data, comps: _pdf_cc_top_users(data),
     "cc_user_table": lambda data, comps: _pdf_cc_user_table(data),
+    "cowork_dau_chart": lambda data, comps: _pdf_cowork_dau_chart(data),
+    "cowork_top_users": lambda data, comps: _pdf_cowork_top_users(data),
     "member_directory": lambda data, comps: _pdf_member_directory(data),
     "executive_summary": lambda data, comps: _pdf_executive_summary(data, comps),
     "email_highlights": lambda data, comps: _pdf_email_highlights(data),

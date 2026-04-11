@@ -39,6 +39,9 @@ REPORT_COMPONENTS = [
     {"key": "cc_lines_chart", "label": "Claude Code Daily Lines Accepted (Line Chart)", "category": "Claude Code", "supports_date_range": False},
     {"key": "cc_top_users", "label": "Claude Code Top Users (Bar Charts)", "category": "Claude Code", "supports_date_range": False},
     {"key": "cc_user_table", "label": "Claude Code User Breakdown (Table)", "category": "Claude Code", "supports_date_range": False},
+    # --- Cowork ---
+    {"key": "cowork_dau_chart", "label": "Cowork Daily Active Users (Line Chart)", "category": "Cowork", "supports_date_range": True},
+    {"key": "cowork_top_users", "label": "Cowork Top Users (Bar Chart)", "category": "Cowork", "supports_date_range": False},
     # --- People ---
     {"key": "member_directory", "label": "Member Directory Table", "category": "People", "supports_date_range": False},
     # --- Narrative ---
@@ -81,7 +84,9 @@ _BUILTIN_TEMPLATES = [
             {"key": "cc_lines_chart", "enabled": True, "order": 11, "date_range": None},
             {"key": "cc_top_users", "enabled": True, "order": 12, "date_range": None},
             {"key": "cc_user_table", "enabled": True, "order": 13, "date_range": None},
-            {"key": "member_directory", "enabled": True, "order": 14, "date_range": None},
+            {"key": "cowork_dau_chart", "enabled": True, "order": 15, "date_range": None},
+            {"key": "cowork_top_users", "enabled": True, "order": 16, "date_range": None},
+            {"key": "member_directory", "enabled": True, "order": 17, "date_range": None},
         ],
     },
     {
@@ -98,6 +103,8 @@ _BUILTIN_TEMPLATES = [
             {"key": "cc_sessions_chart", "enabled": True, "order": 6, "date_range": None},
             {"key": "cc_lines_chart", "enabled": True, "order": 7, "date_range": None},
             {"key": "cc_top_users", "enabled": True, "order": 8, "date_range": None},
+            {"key": "cowork_dau_chart", "enabled": True, "order": 9, "date_range": None},
+            {"key": "cowork_top_users", "enabled": True, "order": 10, "date_range": None},
         ],
     },
     {
@@ -110,6 +117,16 @@ _BUILTIN_TEMPLATES = [
             {"key": "role_pie", "enabled": True, "order": 2, "date_range": None},
             {"key": "tier_pie", "enabled": True, "order": 3, "date_range": None},
             {"key": "member_directory", "enabled": True, "order": 4, "date_range": None},
+        ],
+    },
+    {
+        "id": "tpl-cowork",
+        "title": "Cowork Analytics",
+        "description": "Claude Cowork adoption and usage — daily active users and top contributors",
+        "components": [
+            {"key": "stats_row", "enabled": True, "order": 0, "date_range": None},
+            {"key": "cowork_dau_chart", "enabled": True, "order": 1, "date_range": None},
+            {"key": "cowork_top_users", "enabled": True, "order": 2, "date_range": None},
         ],
     },
     {
@@ -135,7 +152,9 @@ _BUILTIN_TEMPLATES = [
             {"key": "cc_lines_chart", "enabled": True, "order": 15, "date_range": None},
             {"key": "cc_top_users", "enabled": True, "order": 16, "date_range": None},
             {"key": "cc_user_table", "enabled": True, "order": 17, "date_range": None},
-            {"key": "member_directory", "enabled": True, "order": 18, "date_range": None},
+            {"key": "cowork_dau_chart", "enabled": True, "order": 18, "date_range": None},
+            {"key": "cowork_top_users", "enabled": True, "order": 19, "date_range": None},
+            {"key": "member_directory", "enabled": True, "order": 20, "date_range": None},
         ],
     },
 ]

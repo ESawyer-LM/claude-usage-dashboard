@@ -2,6 +2,17 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.0] - 2026-04-11
+
+### Added
+- **Claude Cowork analytics section** — new data collection and reporting for the `/analytics/cowork` page
+  - Scraper fetches Cowork DAU timeseries and top users via `product_filter=cowork` on existing activity/rankings endpoints
+  - Standard HTML/PDF reports include Cowork section with DAU line chart and Top Users bar chart (teal accent `#0891b2`)
+  - Custom report builder gains two new components: `cowork_dau_chart` and `cowork_top_users`
+  - New "Cowork Analytics" built-in template (`tpl-cowork`)
+  - All existing templates (Full Dashboard, Activity Deep Dive, Expanded Report) updated to include Cowork components
+  - Executive summary auto-narrative includes Cowork peak DAU when data is available
+
 ## [0.10.14] - 2026-04-11
 
 ### Added
