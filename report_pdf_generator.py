@@ -557,9 +557,10 @@ def _pdf_member_directory(data):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
     top_artifacts = data.get("top_users_artifacts", [])
+    top_chats = data.get("top_users_chats", [])
     if not members:
         return []
-    table = _build_member_table(members, top_projects, top_artifacts)
+    table = _build_member_table(members, top_projects, top_artifacts, top_chats)
     return [
         SectionHeader("Member Directory"),
         Spacer(1, 10),
