@@ -680,7 +680,7 @@ _BASE_CSS = """
     }
     .navbar {
         background: #C8102E; padding: 14px 24px; display: flex;
-        align-items: center; justify-content: space-between; color: white;
+        align-items: center; gap: 24px; color: white;
     }
     .navbar-brand { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; color: white; }
     .navbar a { color: white; text-decoration: none; font-size: 13px; opacity: 0.9; }
