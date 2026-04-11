@@ -635,6 +635,7 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
     sections = set(rt_config["sections"])
 
     filepath = os.path.join(output_dir, f"claude_usage_dashboard_{report_type}.pdf")
+    logger.debug(f"Generating PDF: report_type={report_type}, sections={sections}, output={filepath}")
 
     members = data.get("members", [])
     daily_chats = data.get("daily_chats", {"labels": [], "data": []})
@@ -1139,6 +1140,7 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             ]))
 
     # Build PDF with page background and numbered footer
+    logger.debug(f"Building PDF with {len(story)} flowables")
     NumberedCanvas = _make_numbered_canvas_factory(today_str)
     doc.build(story, canvasmaker=NumberedCanvas)
     file_size = os.path.getsize(filepath)

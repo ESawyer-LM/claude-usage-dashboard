@@ -37,6 +37,9 @@ def send_report(
     smtp_pass_encrypted = settings.get("smtp_pass", "")
     smtp_from_name = settings.get("smtp_from_name", "Claude Dashboard")
 
+    logger.debug(f"SMTP config: host={smtp_host}, port={smtp_port}, user={smtp_user}, from_name={smtp_from_name}")
+    logger.debug(f"Report type: {report_type} ({rt_name}), is_test={is_test}, recipients={recipients}")
+
     smtp_pass = config.decrypt_value(smtp_pass_encrypted)
     if not smtp_pass:
         raise ValueError("SMTP password is not configured. Set it in the admin UI.")
@@ -114,6 +117,7 @@ Interactive HTML version saved to: {output_dir}
     if os.path.exists(pdf_path):
         with open(pdf_path, "rb") as f:
             pdf_data = f.read()
+        logger.debug(f"Attaching PDF: {pdf_path} ({len(pdf_data) / 1024:.1f} KB)")
         msg.add_attachment(
             pdf_data,
             maintype="application",
@@ -126,6 +130,8 @@ Interactive HTML version saved to: {output_dir}
     # Send via SMTP
     logger.info(f"Sending email to {recipients} via {smtp_host}:{smtp_port}")
 
+    conn_type = "SSL/TLS" if smtp_port == 465 else ("STARTTLS" if smtp_port != 25 else "plain")
+    logger.debug(f"SMTP connection: {conn_type} to {smtp_host}:{smtp_port}")
     if smtp_port == 465:
         # SSL/TLS
         with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as server:
@@ -165,6 +171,8 @@ def test_smtp_connection() -> tuple[bool, str]:
         return False, "SMTP host is not configured"
 
     try:
+        conn_type = "SSL/TLS" if smtp_port == 465 else ("STARTTLS" if smtp_port != 25 else "plain")
+        logger.debug(f"Testing SMTP: {conn_type} to {smtp_host}:{smtp_port} as {smtp_user}")
         if smtp_port == 465:
             with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=15) as server:
                 server.login(smtp_user, smtp_pass)
@@ -176,6 +184,7 @@ def test_smtp_connection() -> tuple[bool, str]:
                     server.ehlo()
                 server.login(smtp_user, smtp_pass)
 
+        logger.debug("SMTP test connection successful")
         return True, "Connection successful"
     except smtplib.SMTPAuthenticationError:
         return False, "Authentication failed — check username and password"

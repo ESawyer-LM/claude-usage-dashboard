@@ -36,6 +36,7 @@ def _build_trigger(schedule: dict, tz_str: str):
     rtype = schedule.get("recurrence_type", "weekly")
     hour = schedule["time"]["hour"]
     minute = schedule["time"]["minute"]
+    logger.debug(f"Building trigger: type={rtype}, time={hour:02d}:{minute:02d}, tz={tz_str}")
 
     if rtype == "weekdays":
         return CronTrigger(
@@ -93,6 +94,9 @@ def run_report_job(schedule_id: str, force: bool = False):
         logger.warning(f"Schedule '{schedule_id}' not found in settings, skipping")
         return
 
+    logger.debug(f"Schedule config: enabled={schedule.get('enabled')}, recurrence={schedule.get('recurrence_type')}, "
+                 f"recipients={len(schedule.get('recipients', []))}, report_type={schedule.get('report_type')}")
+
     if not force and not schedule.get("enabled", True):
         logger.info(f"Schedule '{schedule['name']}' is disabled, skipping")
         return
@@ -101,7 +105,9 @@ def run_report_job(schedule_id: str, force: bool = False):
     if not force and schedule.get("recurrence_type") == "biweekly" and schedule.get("last_sent"):
         try:
             last = datetime.fromisoformat(schedule["last_sent"])
-            if datetime.now() - last < timedelta(days=10):
+            days_since = (datetime.now() - last).days
+            logger.debug(f"Biweekly check: last_sent={schedule['last_sent']}, days_since={days_since}")
+            if days_since < 10:
                 logger.info(
                     f"Schedule '{schedule['name']}' is biweekly and last sent "
                     f"{schedule['last_sent']}, skipping this week"
@@ -236,17 +242,20 @@ def create_scheduler() -> BlockingScheduler:
     tz_str = settings.get("timezone", "America/Chicago")
     sched = BlockingScheduler()
 
+    logger.debug(f"Creating scheduler: timezone={tz_str}, schedules={len(settings.get('schedules', []))}")
     for schedule in settings.get("schedules", []):
         try:
             trigger = _build_trigger(schedule, tz_str)
+            job_id = f"{_JOB_PREFIX}{schedule['id']}"
             sched.add_job(
                 run_report_job,
                 trigger,
-                id=f"{_JOB_PREFIX}{schedule['id']}",
+                id=job_id,
                 kwargs={"schedule_id": schedule["id"]},
                 replace_existing=True,
                 name=schedule.get("name", "Unnamed Schedule"),
             )
+            logger.debug(f"Registered job '{job_id}' ({schedule.get('name')}): {trigger}")
         except Exception as e:
             logger.error(f"Failed to create job for schedule '{schedule['id']}': {e}")
 
@@ -278,9 +287,12 @@ def sync_jobs(settings: dict = None):
     tz_str = settings.get("timezone", "America/Chicago")
 
     # Remove all existing schedule jobs
+    removed = 0
     for job in _scheduler.get_jobs():
         if job.id.startswith(_JOB_PREFIX):
             _scheduler.remove_job(job.id)
+            removed += 1
+    logger.debug(f"Removed {removed} existing schedule job(s)")
 
     # Re-add from current settings
     for schedule in settings.get("schedules", []):

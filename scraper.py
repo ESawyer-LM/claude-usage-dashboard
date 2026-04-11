@@ -53,6 +53,7 @@ class ScrapeError(Exception):
 def _api_get(path: str, session_cookie: str) -> dict | list:
     """Authenticated GET request to claude.ai internal API."""
     url = f"{BASE_URL}{path}"
+    logger.debug(f"API GET {path}")
     req = urllib.request.Request(url)
     req.add_header("Cookie", f"sessionKey={session_cookie}")
     req.add_header("Accept", "application/json")
@@ -66,9 +67,14 @@ def _api_get(path: str, session_cookie: str) -> dict | list:
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+            result = json.loads(raw)
+            keys = list(result.keys()) if isinstance(result, dict) else f"list[{len(result)}]"
+            logger.debug(f"API GET {path} -> {resp.status} ({len(raw)} bytes, keys={keys})")
+            return result
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")[:500]
+        logger.debug(f"API GET {path} -> HTTP {e.code}: {body[:200]}")
         if e.code in (401, 403):
             raise AuthenticationError(
                 f"Session cookie is expired or invalid (HTTP {e.code}). "
@@ -76,6 +82,7 @@ def _api_get(path: str, session_cookie: str) -> dict | list:
             )
         raise ScrapeError(f"API error {e.code} on {path}: {body}")
     except urllib.error.URLError as e:
+        logger.debug(f"API GET {path} -> URLError: {e}")
         raise ScrapeError(f"Network error on {path}: {e}")
 
 
@@ -89,11 +96,14 @@ def _fetch_members(cookie: str, org_id: str) -> list[dict]:
     limit = 50
 
     while True:
+        logger.debug(f"Fetching members page: offset={offset}, limit={limit}")
         data = _api_get(
             f"/api/organizations/{org_id}/members_v2?offset={offset}&limit={limit}",
             cookie,
         )
-        for item in data.get("data", []):
+        page_items = data.get("data", [])
+        logger.debug(f"Members page returned {len(page_items)} items")
+        for item in page_items:
             member_type = item.get("type", "member")
 
             if member_type == "invite":
@@ -127,10 +137,13 @@ def _fetch_members(cookie: str, org_id: str) -> list[dict]:
                 "status": status, "seat_tier": seat_tier,
             })
 
-        if not data.get("pagination", {}).get("has_more", False):
+        has_more = data.get("pagination", {}).get("has_more", False)
+        logger.debug(f"Members pagination: has_more={has_more}")
+        if not has_more:
             break
         offset += limit
 
+    logger.debug(f"Total members fetched: {len(members)}")
     return members
 
 
@@ -159,10 +172,12 @@ def _fetch_subscription(cookie: str, org_id: str) -> dict:
 def _fetch_activity_overview(cookie: str, org_id: str) -> dict:
     """DAU, WAU, MAU, utilization, stickiness."""
     try:
-        return _api_get(
+        data = _api_get(
             f"/api/organizations/{org_id}/analytics/activity/overview",
             cookie,
         )
+        logger.debug(f"Activity overview keys: {list(data.keys())}")
+        return data
     except ScrapeError as e:
         logger.warning(f"Could not fetch activity overview: {e}")
         return {}
@@ -176,7 +191,11 @@ def _fetch_activity_timeseries(cookie: str, org_id: str, metric: str = "dau", da
             f"?metric={metric}&days={days}",
             cookie,
         )
-        return data.get("data_points", [])
+        points = data.get("data_points", [])
+        logger.debug(f"Activity timeseries '{metric}': {len(points)} data points")
+        if points:
+            logger.debug(f"Activity timeseries '{metric}' sample keys: {list(points[0].keys())}")
+        return points
     except ScrapeError as e:
         logger.warning(f"Could not fetch activity {metric} timeseries: {e}")
         return []
@@ -191,10 +210,12 @@ def _fetch_usage_overview(cookie: str, org_id: str) -> dict:
     Endpoint: /analytics/usage/overview
     """
     try:
-        return _api_get(
+        data = _api_get(
             f"/api/organizations/{org_id}/analytics/usage/overview",
             cookie,
         )
+        logger.debug(f"Usage overview keys: {list(data.keys())}")
+        return data
     except ScrapeError as e:
         logger.warning(f"Could not fetch usage overview: {e}")
         return {}
@@ -211,7 +232,9 @@ def _fetch_usage_timeseries(cookie: str, org_id: str, metric: str = "chats", day
             f"?metric={metric}&days={days}",
             cookie,
         )
-        return data.get("data_points", [])
+        points = data.get("data_points", [])
+        logger.debug(f"Usage timeseries '{metric}': {len(points)} data points")
+        return points
     except ScrapeError as e:
         logger.warning(f"Could not fetch usage {metric} timeseries: {e}")
         return []
@@ -231,7 +254,9 @@ def _fetch_user_rankings(cookie: str, org_id: str, metric: str = "projects", lim
             f"?metric={metric}&start_date={first_of_month}&limit={limit}",
             cookie,
         )
-        return data.get("users", [])
+        users = data.get("users", [])
+        logger.debug(f"User rankings '{metric}': {len(users)} users (start_date={first_of_month})")
+        return users
     except ScrapeError as e:
         logger.warning(f"Could not fetch user rankings for {metric}: {e}")
         return []
@@ -250,13 +275,19 @@ def _fetch_claude_code_overview(cookie: str, org_id: str) -> dict:
     last_of_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
     end_date = last_of_month.strftime("%Y-%m-%d")
     try:
-        return _api_get(
+        data = _api_get(
             f"/api/claude_code/metrics_aggs/overview"
             f"?start_date={first_of_month}&end_date={end_date}"
             f"&granularity=daily&organization_uuid={org_id}"
             f"&customer_type=claude_ai&subscription_type=team",
             cookie,
         )
+        logger.debug(f"CC overview keys: {list(data.keys())}")
+        if "summary" in data:
+            logger.debug(f"CC summary keys: {list(data['summary'].keys())}")
+        if "time_series" in data:
+            logger.debug(f"CC timeseries keys: {list(data['time_series'].keys())}")
+        return data
     except ScrapeError as e:
         logger.warning(f"Could not fetch Claude Code overview: {e}")
         return {}
@@ -280,7 +311,10 @@ def _fetch_claude_code_users(cookie: str, org_id: str) -> list[dict]:
             f"&customer_type=claude_ai&subscription_type=team",
             cookie,
         )
-        return data.get("users", [])
+        users = data.get("users", [])
+        if users:
+            logger.debug(f"CC per-user fields: {list(users[0].keys())}")
+        return users
     except ScrapeError as e:
         logger.warning(f"Could not fetch Claude Code users: {e}")
         return []
@@ -356,9 +390,11 @@ def scrape(progress_callback=None) -> dict:
 
     settings = config.load_settings()
     cookie = settings.get("session_cookie", "")
+    logger.debug(f"Session cookie present: {bool(cookie)} (length={len(cookie)})")
     if not cookie:
         cached = config.load_cache()
         if cached:
+            logger.debug("No cookie — returning cached data")
             cached["from_cache"] = True
             cached["cache_reason"] = "Session cookie not configured"
             return cached
@@ -379,6 +415,8 @@ def scrape(progress_callback=None) -> dict:
         logger.info("Fetching counts and seat limits...")
         counts = _fetch_member_counts(cookie, org_id)
         limits = _fetch_seat_limits(cookie, org_id)
+        logger.debug(f"Member counts response: {counts}")
+        logger.debug(f"Seat limits response: {limits}")
         seat_tiers = limits.get("seat_tier_quantities", {})
         # Total assigned seats = sum of all tier quantities (e.g. team_standard:22 + team_tier_1:2 = 24)
         total_seats = sum(seat_tiers.values()) if seat_tiers else counts.get("total", len(members))
@@ -391,7 +429,9 @@ def scrape(progress_callback=None) -> dict:
         # --- Subscription ---
         logger.info("Fetching subscription...")
         subscription = _fetch_subscription(cookie, org_id)
+        logger.debug(f"Subscription response: {subscription}")
         plan_tier = "Team" if ("team_standard" in seat_tiers or "team_tier_1" in seat_tiers) else "Standard"
+        logger.debug(f"Seat tiers: {seat_tiers} -> plan_tier={plan_tier}")
 
         # --- Activity overview (DAU/WAU/MAU/utilization) ---
         _report_progress(progress_callback, "activity", 35, "Fetching activity metrics")
@@ -478,7 +518,11 @@ def scrape(progress_callback=None) -> dict:
 
         # Build Claude Code activity timeseries for chart
         cc_activity_chart = {"labels": [], "data": []}
-        for dp in cc_timeseries.get("activity", []):
+        cc_activity_series = cc_timeseries.get("activity", [])
+        logger.debug(f"CC activity timeseries: {len(cc_activity_series)} points")
+        if cc_activity_series:
+            logger.debug(f"CC activity sample keys: {list(cc_activity_series[0].keys())}")
+        for dp in cc_activity_series:
             date_str = dp.get("date", "")
             try:
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -490,6 +534,9 @@ def scrape(progress_callback=None) -> dict:
         # Build Claude Code lines-of-code timeseries for chart
         cc_lines_chart = {"labels": [], "data": []}
         lines_series = cc_timeseries.get("lines_of_code", [])
+        logger.debug(f"CC lines_of_code timeseries: {len(lines_series)} points")
+        if lines_series:
+            logger.debug(f"CC lines_of_code sample: {lines_series[0]}")
         for dp in lines_series:
             date_str = dp.get("date", "")
             try:
@@ -527,6 +574,8 @@ def scrape(progress_callback=None) -> dict:
             "from_cache": False,
         }
 
+        logger.debug(f"CC activity chart: {len(cc_activity_chart['data'])} points, data={cc_activity_chart['data']}")
+        logger.debug(f"CC lines chart: {len(cc_lines_chart['data'])} points, data={cc_lines_chart['data']}")
         config.save_cache(result)
         _report_progress(progress_callback, "complete", 100, "Scrape complete")
         logger.info(
