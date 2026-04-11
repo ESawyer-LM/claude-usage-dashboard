@@ -958,8 +958,8 @@ def _render_cc_user_table(data, comp, idx):
         u_initials = _escape(_get_initials(u.get("name", "")))
         u_sessions = u.get("total_sessions", 0)
         u_lines = u.get("total_lines_accepted", 0)
-        u_commits = u.get("commits_created", 0)
-        u_prs_val = u.get("pull_requests_created", 0)
+        u_avg_lines = float(u.get("avg_lines_accepted_per_day", 0) or 0)
+        u_prs_val = u.get("total_prs", u.get("prs_with_cc", 0))
         u_last = _escape(u.get("last_active", "\u2014") or "\u2014")
         if u_last != "\u2014" and len(u_last) >= 10:
             u_last = u_last[:10]
@@ -976,7 +976,7 @@ def _render_cc_user_table(data, comp, idx):
                 </td>
                 <td style="padding:12px 16px;text-align:center;color:#374151;">{u_sessions}</td>
                 <td style="padding:12px 16px;text-align:center;color:#374151;">{u_lines:,}</td>
-                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_commits}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;">{u_avg_lines:,.0f}</td>
                 <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
                 <td style="padding:12px 16px;color:#374151;">{u_last}</td>
             </tr>"""
@@ -989,7 +989,7 @@ def _render_cc_user_table(data, comp, idx):
                     <th>User</th>
                     <th style="text-align:center;">Sessions</th>
                     <th style="text-align:center;">Lines Accepted</th>
-                    <th style="text-align:center;">Commits</th>
+                    <th style="text-align:center;">Avg Lines/Day</th>
                     <th style="text-align:center;">PRs</th>
                     <th>Last Active</th>
                 </tr>

@@ -469,21 +469,11 @@ def scrape(progress_callback=None) -> dict:
         # --- Claude Code per-user metrics ---
         logger.info("Fetching Claude Code per-user metrics...")
         cc_users = _fetch_claude_code_users(cookie, org_id)
-        # Log actual per-user fields so we can track API changes
-        if cc_users:
-            logger.info(f"Claude Code per-user fields: {list(cc_users[0].keys())}")
-            logger.info(f"Claude Code per-user sample: {cc_users[0]}")
-        # Join with member names and normalize field names for report generators
+        # Join with member names
         email_to_name = {m["email"]: m["name"] for m in members if m.get("email")}
         for u in cc_users:
             email = u.get("email", "")
             u["name"] = email_to_name.get(email, email.split("@")[0].replace(".", " ").title())
-            # Normalize: per-user endpoint uses "prs_with_cc" but generators expect "pull_requests_created"
-            if "pull_requests_created" not in u:
-                u["pull_requests_created"] = u.get("prs_with_cc", 0)
-            # Normalize: per-user endpoint may use "commits" instead of "commits_created"
-            if "commits_created" not in u:
-                u["commits_created"] = u.get("commits", u.get("total_commits", 0))
         logger.info(f"Claude Code users: {len(cc_users)}")
 
         # Build Claude Code activity timeseries for chart

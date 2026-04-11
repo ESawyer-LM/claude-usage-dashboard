@@ -547,7 +547,7 @@ def _build_cc_user_table(cc_users, max_users=25):
         Paragraph("USER", header_style),
         Paragraph("SESSIONS", header_center),
         Paragraph("LINES", header_center),
-        Paragraph("COMMITS", header_center),
+        Paragraph("AVG LINES/DAY", header_center),
         Paragraph("PRs", header_center),
         Paragraph("LAST ACTIVE", header_center),
     ]
@@ -558,8 +558,8 @@ def _build_cc_user_table(cc_users, max_users=25):
         email = u.get("email", "")
         sessions = u.get("total_sessions", 0)
         lines_val = u.get("total_lines_accepted", 0)
-        commits = u.get("commits_created", 0)
-        prs = u.get("pull_requests_created", 0)
+        avg_lines = float(u.get("avg_lines_accepted_per_day", 0) or 0)
+        prs = u.get("total_prs", u.get("prs_with_cc", 0))
         last_active = u.get("last_active", "—") or "—"
         if last_active != "—" and len(last_active) >= 10:
             last_active = last_active[:10]
@@ -571,23 +571,23 @@ def _build_cc_user_table(cc_users, max_users=25):
 
         sessions_style = cell_center_bold if sessions > 0 else cell_center
         lines_style = cell_center_bold if lines_val > 0 else cell_center
-        commits_style = cell_center_bold if commits > 0 else cell_center
+        avg_lines_style = cell_center_bold if avg_lines > 0 else cell_center
         prs_style = cell_center_bold if prs > 0 else cell_center
 
         data_rows.append([
             name_p,
             Paragraph(str(sessions), sessions_style),
             Paragraph(f"{lines_val:,}", lines_style),
-            Paragraph(str(commits), commits_style),
+            Paragraph(f"{avg_lines:,.0f}", avg_lines_style),
             Paragraph(str(prs), prs_style),
             Paragraph(last_active, cell_center),
         ])
 
     col_widths = [
-        USABLE_WIDTH * 0.32,  # USER
+        USABLE_WIDTH * 0.30,  # USER
         USABLE_WIDTH * 0.12,  # SESSIONS
         USABLE_WIDTH * 0.14,  # LINES
-        USABLE_WIDTH * 0.12,  # COMMITS
+        USABLE_WIDTH * 0.14,  # AVG LINES/DAY
         USABLE_WIDTH * 0.10,  # PRs
         USABLE_WIDTH * 0.20,  # LAST ACTIVE
     ]
