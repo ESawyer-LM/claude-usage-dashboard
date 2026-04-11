@@ -641,9 +641,9 @@ def _pdf_email_highlights(data):
 # Component dispatcher
 # ---------------------------------------------------------------------------
 _COMPONENT_RENDERERS = {
-    "stats_row": lambda data, comps: _pdf_stats_row(data),
-    "status_pie": lambda data, comps: _pdf_status_pie(data),
-    "status_donut": lambda data, comps: _pdf_status_pie(data),
+    "stats_row": lambda data, comps, comp=None: _pdf_stats_row(data),
+    "status_pie": lambda data, comps, comp=None: _pdf_status_pie(data),
+    "status_donut": lambda data, comps, comp=None: _pdf_status_pie(data),
     "role_pie": lambda data, comps, comp=None: _pdf_role_pie(data),
     "role_donut": lambda data, comps, comp=None: _pdf_role_pie(data),
     "tier_pie": lambda data, comps, comp=None: _pdf_tier_pie(data),
