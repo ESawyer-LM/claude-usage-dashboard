@@ -1083,6 +1083,54 @@ def _render_cowork_top_users(data, comp, idx):
     }});"""
 
 
+def _render_cowork_user_table(data, comp, idx):
+    cowork = data.get("cowork", {})
+    cw_users = cowork.get("users", [])
+    if not cw_users:
+        return ""
+    rows = ""
+    for u in cw_users:
+        u_name = _escape(u.get("name", ""))
+        u_email = _escape(u.get("email", ""))
+        u_initials = _escape(_get_initials(u.get("name", "")))
+        u_chats = u.get("chats", 0)
+        u_projects = u.get("projects", 0)
+        u_artifacts = u.get("artifacts", 0)
+        chat_style = 'font-weight:700;color:#0891b2;' if u_chats > 0 else ''
+        proj_style = 'font-weight:700;' if u_projects > 0 else ''
+        art_style = 'font-weight:700;' if u_artifacts > 0 else ''
+        rows += f"""
+            <tr>
+                <td style="padding:12px 16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#0891b2;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{u_initials}</div>
+                        <div>
+                            <div style="font-weight:500;color:#111827;">{u_name}</div>
+                            <div style="font-size:12px;color:#6b7280;">{u_email}</div>
+                        </div>
+                    </div>
+                </td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;{chat_style}">{u_chats}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;{proj_style}">{u_projects}</td>
+                <td style="padding:12px 16px;text-align:center;color:#374151;{art_style}">{u_artifacts}</td>
+            </tr>"""
+    return f"""
+    <div class="table-card">
+        <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Cowork User Breakdown (MTD)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th style="text-align:center;">Chats</th>
+                    <th style="text-align:center;">Projects</th>
+                    <th style="text-align:center;">Artifacts</th>
+                </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+        </table>
+    </div>"""
+
+
 def _render_member_directory(data, comp, idx):
     members = data.get("members", [])
     top_projects = data.get("top_users_projects", [])
@@ -1366,6 +1414,8 @@ def generate_report_html(data: dict, report_config: dict) -> str:
             result = _render_cowork_dau_chart(comp_data, comp, idx)
         elif key == "cowork_top_users":
             result = _render_cowork_top_users(comp_data, comp, idx)
+        elif key == "cowork_user_table":
+            result = _render_cowork_user_table(comp_data, comp, idx)
         elif key == "member_directory":
             result = _render_member_directory(comp_data, comp, idx)
         elif key == "executive_summary":

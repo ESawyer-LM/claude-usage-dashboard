@@ -2,6 +2,15 @@
 
 All notable changes to the Claude Usage Dashboard will be documented in this file.
 
+## [0.11.1] - 2026-04-11
+
+### Added
+- **Cowork User Breakdown table** — per-user table with Chats, Projects, and Artifacts columns
+  - Scraper fetches three ranking metrics with `product_filter=cowork` and merges per-user
+  - Available in standard HTML/PDF reports and as `cowork_user_table` report builder component
+  - All built-in templates updated to include the table
+- Cowork stage added to admin UI progress modal checklist
+
 ## [0.11.0] - 2026-04-11
 
 ### Added

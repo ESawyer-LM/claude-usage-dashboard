@@ -1178,6 +1178,59 @@ def generate_pdf(data: dict, output_dir: str = None, report_type: str = None) ->
             story.append(chart_table)
             story.append(Spacer(1, 14))
 
+        # Cowork user breakdown table
+        cowork_cw_users = cowork.get("users", [])
+        if cowork_cw_users:
+            from reportlab.lib.enums import TA_CENTER as _TA_CENTER
+            styles = getSampleStyleSheet()
+            cw_cell = ParagraphStyle("cw_cell", parent=styles["Normal"], fontSize=7, leading=9)
+            cw_bold = ParagraphStyle("cw_bold", parent=cw_cell, fontName="Helvetica-Bold")
+            cw_center = ParagraphStyle("cw_center", parent=cw_cell, alignment=_TA_CENTER)
+            cw_center_bold = ParagraphStyle("cw_center_bold", parent=cw_bold, alignment=_TA_CENTER)
+            cw_hdr = ParagraphStyle("cw_hdr", parent=styles["Normal"], fontSize=6.5, leading=8,
+                                    textColor=colors.HexColor("#374151"), fontName="Helvetica-Bold")
+            cw_hdr_c = ParagraphStyle("cw_hdr_c", parent=cw_hdr, alignment=_TA_CENTER)
+
+            tbl_data = [[
+                Paragraph("USER", cw_hdr),
+                Paragraph("CHATS", cw_hdr_c),
+                Paragraph("PROJECTS", cw_hdr_c),
+                Paragraph("ARTIFACTS", cw_hdr_c),
+            ]]
+            for u in cowork_cw_users[:25]:
+                name = u.get("name", "")
+                email = u.get("email", "")
+                chats = u.get("chats", 0)
+                projects = u.get("projects", 0)
+                artifacts = u.get("artifacts", 0)
+                tbl_data.append([
+                    Paragraph(f'<b>{name}</b> <font color="#9ca3af" size="6">{email}</font>', cw_cell),
+                    Paragraph(str(chats), cw_center_bold if chats > 0 else cw_center),
+                    Paragraph(str(projects), cw_center_bold if projects > 0 else cw_center),
+                    Paragraph(str(artifacts), cw_center_bold if artifacts > 0 else cw_center),
+                ])
+            col_widths = [USABLE_WIDTH * 0.40, USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.20, USABLE_WIDTH * 0.20]
+            tbl = Table(tbl_data, colWidths=col_widths, repeatRows=1)
+            tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f9fafb")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#374151")),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 6.5),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("TOPPADDING", (0, 0), (-1, 0), 6),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 1), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+            ]))
+            story.append(SectionHeader("Cowork User Breakdown", color=CW_TEAL))
+            story.append(Spacer(1, 10))
+            story.append(tbl)
+            story.append(Spacer(1, 14))
+
     # =======================================================================
     # ALL MEMBERS
     # =======================================================================

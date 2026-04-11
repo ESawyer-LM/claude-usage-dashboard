@@ -532,6 +532,29 @@ def scrape(progress_callback=None) -> dict:
         cowork_top_users = _rankings_to_top_users(cowork_top_users_rankings, members)
         logger.info(f"Cowork top users: {len(cowork_top_users)}")
 
+        # Per-user Cowork breakdown (merge chats, projects, artifacts rankings)
+        cowork_proj_rankings = _fetch_user_rankings(cookie, org_id, metric="projects", limit=50, product_filter="cowork")
+        cowork_art_rankings = _fetch_user_rankings(cookie, org_id, metric="artifacts", limit=50, product_filter="cowork")
+        # Build lookup by email
+        cw_proj_map = {r.get("email_address", ""): int(r.get("value", 0)) for r in cowork_proj_rankings}
+        cw_art_map = {r.get("email_address", ""): int(r.get("value", 0)) for r in cowork_art_rankings}
+        cw_chat_map = {r.get("email_address", ""): int(r.get("value", 0)) for r in cowork_top_users_rankings}
+        # Union all emails
+        cw_all_emails = set(cw_chat_map) | set(cw_proj_map) | set(cw_art_map)
+        cw_all_emails.discard("")
+        cowork_users = []
+        for email in cw_all_emails:
+            name = email_to_name.get(email, email.split("@")[0].replace(".", " ").title())
+            cowork_users.append({
+                "name": name,
+                "email": email,
+                "chats": cw_chat_map.get(email, 0),
+                "projects": cw_proj_map.get(email, 0),
+                "artifacts": cw_art_map.get(email, 0),
+            })
+        cowork_users.sort(key=lambda u: u["chats"], reverse=True)
+        logger.info(f"Cowork users breakdown: {len(cowork_users)}")
+
         # Build Claude Code activity timeseries for chart
         cc_activity_chart = {"labels": [], "data": []}
         cc_activity_series = cc_timeseries.get("activity", [])
@@ -590,6 +613,7 @@ def scrape(progress_callback=None) -> dict:
             "cowork": {
                 "dau_chart": cowork_dau_chart,
                 "top_users": cowork_top_users,
+                "users": cowork_users,
             },
             "from_cache": False,
         }

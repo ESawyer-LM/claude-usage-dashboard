@@ -151,6 +151,7 @@ def generate_html(data: dict, report_type: str = None) -> str:
     cowork = data.get("cowork", {})
     cowork_dau_chart = cowork.get("dau_chart", {"labels": [], "data": []})
     cowork_top_users = cowork.get("top_users", [])
+    cowork_users = cowork.get("users", [])
 
     cc_active_users = cc_summary.get("active_users", 0)
     cc_sessions = cc_summary.get("total_sessions", 0)
@@ -283,6 +284,34 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_avg_lines:,.0f}</td>
                     <td style="padding:12px 16px;text-align:center;color:#374151;">{u_prs_val}</td>
                     <td style="padding:12px 16px;color:#374151;">{u_last_active}</td>
+                </tr>"""
+
+    # Cowork user table rows
+    cowork_user_rows = ""
+    for u in cowork_users:
+        cw_name = _escape(u.get("name", ""))
+        cw_email = _escape(u.get("email", ""))
+        cw_initials = _escape(_get_initials(u.get("name", "")))
+        cw_chats = u.get("chats", 0)
+        cw_projects = u.get("projects", 0)
+        cw_artifacts = u.get("artifacts", 0)
+        chat_style = 'color:#0891b2;font-weight:700;' if cw_chats > 0 else 'color:#374151;'
+        proj_style = 'color:#374151;font-weight:700;' if cw_projects > 0 else 'color:#374151;'
+        art_style = 'color:#374151;font-weight:700;' if cw_artifacts > 0 else 'color:#374151;'
+        cowork_user_rows += f"""
+                <tr>
+                    <td style="padding:12px 16px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:36px;height:36px;border-radius:50%;background:#0891b2;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">{cw_initials}</div>
+                            <div>
+                                <div style="font-weight:500;color:#111827;">{cw_name}</div>
+                                <div style="font-size:12px;color:#6b7280;">{cw_email}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding:12px 16px;text-align:center;{chat_style}">{cw_chats}</td>
+                    <td style="padding:12px 16px;text-align:center;{proj_style}">{cw_projects}</td>
+                    <td style="padding:12px 16px;text-align:center;{art_style}">{cw_artifacts}</td>
                 </tr>"""
 
     # Pre-build expanded report conditional HTML (avoids backslash-in-fstring issues)
@@ -600,6 +629,24 @@ def generate_html(data: dict, report_type: str = None) -> str:
                     <canvas id="coworkTopUsersChart"></canvas>
                 </div>
             </div>
+        </div>
+
+        <!-- Cowork User Breakdown -->
+        <div class="table-card">
+            <h3 style="font-size:16px;font-weight:600;color:#111827;margin-bottom:16px;">Cowork User Breakdown (MTD)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th style="text-align:center;">Chats</th>
+                        <th style="text-align:center;">Projects</th>
+                        <th style="text-align:center;">Artifacts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {cowork_user_rows}
+                </tbody>
+            </table>
         </div>
         '''}
 
