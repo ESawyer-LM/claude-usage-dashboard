@@ -71,6 +71,12 @@ def create_app(scheduler_ref=None):
     from report_builder import reports_bp
     app.register_blueprint(reports_bp)
 
+    # Log unhandled exceptions to our logger
+    @app.errorhandler(Exception)
+    def _handle_exception(e):
+        logger.error(f"Unhandled exception on {request.path}: {e}", exc_info=True)
+        return f"Internal Server Error: {e}", 500
+
     # Endpoints whose auto-refresh should NOT reset the inactivity timer
     _AUTO_REFRESH_PATHS = {"/api/status", "/logs"}
 
